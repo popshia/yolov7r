@@ -593,20 +593,34 @@ class ComputeLossOTA:
 
     def __call__(self, p, targets, imgs):  # predictions, targets, model   
         device = targets.device
+
         # REVIEW: add radian loss "lrad"
+        # lcls, lbox, lobj = torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device)
         lcls, lbox, lobj, lrad = torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device)
-        bs, as_, gjs, gis, targets, anchors = self.build_targets(p, targets, imgs)
+
+        # REVIEW: add target rads
+        # TODO: figure out rads' purpose
+        # bs, as_, gjs, gis, targets, anchors = self.build_targets(p, targets, imgs)
+        bs, as_, gjs, gis, targets, anchors, rads = self.build_targets(p, targets, imgs)
+
         pre_gen_gains = [torch.tensor(pp.shape, device=device)[[3, 2, 3, 2]] for pp in p] 
     
 
         # Losses
         for i, pi in enumerate(p):  # layer index, layer predictions
-            b, a, gj, gi = bs[i], as_[i], gjs[i], gis[i]  # image, anchor, gridy, gridx
+            # REVIEW: get corresponding rads
+            # b, a, gj, gi = bs[i], as_[i], gjs[i], gis[i]  # image, anchor, gridy, gridx
+            b, a, gj, gi, rad = bs[i], as_[i], gjs[i], gis[i], rads[i]  # image, anchor, gridy, gridx, rads
+            # <PARAM> rad: current layer's all targets' radian value
+
             tobj = torch.zeros_like(pi[..., 0], device=device)  # target obj
 
             n = b.shape[0]  # number of targets
             if n:
+                # TODO: get corresponding rad to the prediction subset
                 ps = pi[b, a, gj, gi]  # prediction subset corresponding to targets
+                # ps = pi[b, a, gj, gi, rad]  # prediction subset corresponding to targets
+                # <PARAM> ps: the prediction of grid_cell(gi, gj) of a's feature map of b's image
 
                 # Regression
                 grid = torch.stack([gi, gj], dim=1)
@@ -617,7 +631,7 @@ class ComputeLossOTA:
                 selected_tbox = targets[i][:, 2:6] * pre_gen_gains[i]
                 selected_tbox[:, :2] -= grid
                 iou = bbox_iou(pbox.T, selected_tbox, x1y1x2y2=False, CIoU=True)  # iou(prediction, target)
-                # note: box loss
+                # NOTE: box loss
                 lbox += (1.0 - iou).mean()  # iou loss
 
                 # Objectness
@@ -628,17 +642,20 @@ class ComputeLossOTA:
                 if self.nc > 1:  # cls loss (only if multiple classes)
                     t = torch.full_like(ps[:, 5:], self.cn, device=device)  # targets
                     t[range(n), selected_tcls] = self.cp
+                    # NOTE: cls loss
                     lcls += self.BCEcls(ps[:, 5:], t)  # BCE
 
                 # Append targets to text file
                 # with open('targets.txt', 'a') as file:
                 #     [file.write('%11.5g ' * 4 % tuple(x) + '\n') for x in torch.cat((txy[i], twh[i]), 1)]
 
-                # TODO: add radian loss
-                # lrad += self.SL1rad(prediction, target)
+                # REVIEW: add radian loss with Smooth L1 Loss
+                # TODO: i don't know whether i get the right radian GT or not
+                # print(lrad)
+                lrad += self.SL1rad(ps[:, 4], targets[i][:, 6])
 
             obji = self.BCEobj(pi[..., 4], tobj)
-            # note: object loss
+            # NOTE: object loss
             lobj += obji * self.balance[i]  # obj loss
 
             if self.autobalance:
@@ -649,19 +666,20 @@ class ComputeLossOTA:
         lbox *= self.hyp['box']
         lobj *= self.hyp['obj']
         lcls *= self.hyp['cls']
-        # TODO: add lrad multiply with its own weight
-        # lrad *= self.hpy['rad']
+        # TODO: add lrad multiply with its own weight, need to add hyp option in hyp file
+        # lrad *= self.hyp['rad']
         bs = tobj.shape[0]  # batch size
 
-        # TODO: add lrad to loss sum
-        # loss = lbox + lobj + lcls + lrad
-        loss = lbox + lobj + lcls
-        # TODO: add lrad in return
-        # return loss * bs, torch.cat((lbox, lobj, lcls, lrad, loss)).detach()
-        return loss * bs, torch.cat((lbox, lobj, lcls, loss)).detach()
+        # REVIEW: add lrad to loss sum
+        # loss = lbox + lobj + lcls
+        loss = lbox + lobj + lcls + lrad
+
+        # REVIEW: add lrad in return
+        # return loss * bs, torch.cat((lbox, lobj, lcls, loss)).detach()
+        return loss * bs, torch.cat((lbox, lobj, lcls, lrad, loss)).detach()
 
     def build_targets(self, p, targets, imgs):
-        # note: get each attributes of the 3 selected positive samples
+        # NOTE: get each attributes of the 3 selected positive samples
         #indices, anch = self.find_positive(p, targets)
         indices, anch = self.find_3_positive(p, targets)
         #indices, anch = self.find_4_positive(p, targets)
@@ -674,6 +692,9 @@ class ComputeLossOTA:
         matching_gis = [[] for pp in p]
         matching_targets = [[] for pp in p]
         matching_anchs = [[] for pp in p]
+
+        # REVIEW: add matching_rads
+        matching_rads = [[] for pp in p]
         
         nl = len(p)    
     
@@ -690,30 +711,46 @@ class ComputeLossOTA:
             pxyxys = []
             p_cls = []
             p_obj = []
+
             # REVIEW: add p_rad
             p_rad = []
+
             from_which_layer = []
             all_b = []
             all_a = []
             all_gj = []
             all_gi = []
             all_anch = []
-            
+
+            # REVIEW: add all_rad
+            all_rad = []
+
             for i, pi in enumerate(p):
                 
-                b, a, gj, gi = indices[i]
+                # NOTE: b: image index, a: anchor index, a: anchor index, gj: grid y coordinate, gx: grid x coordinate
+                # REVIEW: add rad to recieve corresponding radian value
+                b, a, gj, gi, rad = indices[i]
+
                 idx = (b == batch_idx)
-                b, a, gj, gi = b[idx], a[idx], gj[idx], gi[idx]                
+
+                # REVIEW: get rad with index again
+                b, a, gj, gi, rad = b[idx], a[idx], gj[idx], gi[idx], rad[idx]                
+
                 all_b.append(b)
                 all_a.append(a)
                 all_gj.append(gj)
                 all_gi.append(gi)
                 all_anch.append(anch[i][idx])
+
+                # REVIEW: add all_rad
+                all_rad.append(rad)
+
                 from_which_layer.append(torch.ones(size=(len(b),)) * i)
                 
-                # note: figure out pi and fg_pred's every value representation
+                # get the (gj, gi)'s number a's feature map in picture b
                 fg_pred = pi[b, a, gj, gi]                
-                # REVIEW: if fg_pred is [x, y, w, h, r, obj, cls], then change the two following line's index
+
+                # REVIEW: fg_pred represent [x, y, w, h, r, obj, cls], change the two following line's index
                 # p_obj.append(fg_pred[:, 4:5])
                 # p_cls.append(fg_pred[:, 5:])
                 p_obj.append(fg_pred[:, 5:6])
@@ -723,28 +760,34 @@ class ComputeLossOTA:
                 pxy = (fg_pred[:, :2].sigmoid() * 2. - 0.5 + grid) * self.stride[i] #/ 8.
                 #pxy = (fg_pred[:, :2].sigmoid() * 3. - 1. + grid) * self.stride[i]
                 pwh = (fg_pred[:, 2:4].sigmoid() * 2) ** 2 * anch[i][idx] * self.stride[i] #/ 8.
-                # TODO: add activation function for radian value
-                # prad = fg_pred[:, 4].relu()
+
+                # REVIEW: add activation function for radian value, and append
+                prad = fg_pred[:, 4].relu()
+                p_rad.append(prad)
+
                 pxywh = torch.cat([pxy, pwh], dim=-1)
                 pxyxy = xywh2xyxy(pxywh)
                 pxyxys.append(pxyxy)
-                # TODO: add p_rad
-                # p_rad.append(prad)
             
             pxyxys = torch.cat(pxyxys, dim=0)
             if pxyxys.shape[0] == 0:
                 continue
             p_obj = torch.cat(p_obj, dim=0)
             p_cls = torch.cat(p_cls, dim=0)
-            # TODO: add torch.cat for p_rad
-            # p_rad = torch.cat(p_rad, dim=0)
+
+            # REVIEW: add torch.cat for p_rad
+            p_rad = torch.cat(p_rad, dim=0)
+
             from_which_layer = torch.cat(from_which_layer, dim=0)
             all_b = torch.cat(all_b, dim=0)
             all_a = torch.cat(all_a, dim=0)
             all_gj = torch.cat(all_gj, dim=0)
             all_gi = torch.cat(all_gi, dim=0)
             all_anch = torch.cat(all_anch, dim=0)
-        
+            
+            # REVIEW: add torch.cat for all_rad
+            all_rad = torch.cat(all_rad, dim=0)
+
             pair_wise_iou = box_iou(txyxy, pxyxys)
 
             pair_wise_iou_loss = -torch.log(pair_wise_iou + 1e-8)
@@ -799,6 +842,9 @@ class ComputeLossOTA:
             all_gj = all_gj[fg_mask_inboxes]
             all_gi = all_gi[fg_mask_inboxes]
             all_anch = all_anch[fg_mask_inboxes]
+
+            # REVIEW: add masking inboxes for all_rad
+            all_rad = all_rad[fg_mask_inboxes]
         
             this_target = this_target[matched_gt_inds]
         
@@ -811,6 +857,9 @@ class ComputeLossOTA:
                 matching_targets[i].append(this_target[layer_idx])
                 matching_anchs[i].append(all_anch[layer_idx])
 
+                # REVIEW: append matching rads
+                matching_rads[i].append(all_rad[layer_idx])
+
         for i in range(nl):
             if matching_targets[i] != []:
                 matching_bs[i] = torch.cat(matching_bs[i], dim=0)
@@ -819,6 +868,10 @@ class ComputeLossOTA:
                 matching_gis[i] = torch.cat(matching_gis[i], dim=0)
                 matching_targets[i] = torch.cat(matching_targets[i], dim=0)
                 matching_anchs[i] = torch.cat(matching_anchs[i], dim=0)
+
+                # REVIEW: add matching_rads
+                matching_rads[i] = torch.cat(matching_rads[i], dim=0)
+
             else:
                 matching_bs[i] = torch.tensor([], device='cuda:0', dtype=torch.int64)
                 matching_as[i] = torch.tensor([], device='cuda:0', dtype=torch.int64)
@@ -827,7 +880,10 @@ class ComputeLossOTA:
                 matching_targets[i] = torch.tensor([], device='cuda:0', dtype=torch.int64)
                 matching_anchs[i] = torch.tensor([], device='cuda:0', dtype=torch.int64)
 
-        return matching_bs, matching_as, matching_gjs, matching_gis, matching_targets, matching_anchs           
+                # REVIEW: add matching_rads
+                matching_rads[i] = torch.tensor([], device='cuda:0', dtype=torch.int64)
+
+        return matching_bs, matching_as, matching_gjs, matching_gis, matching_targets, matching_anchs, matching_rads
 
     def find_3_positive(self, p, targets):
         # Build targets for compute_loss(), input targets(image,class,x,y,w,h), find 3 positive samples from ground truth
@@ -874,11 +930,11 @@ class ComputeLossOTA:
                 # <PARAM> r: current feature map's wh ratio with 3 anchor's
 
                 j = torch.max(r, 1. / r).max(2)[0] < self.hyp['anchor_t']  # compare
-                # <PARAM> j: 
+                # <PARAM> j[3, nt]: indicate whether each anchor box is positive or negative sample 
 
                 # j = wh_iou(anchors, t[:, 4:6]) > model.hyp['iou_t']  # iou(3,n)=wh_iou(anchors(3,2), gwh(n,2))
                 t = t[j]  # filter
-                # <PARAM> t: the amount 
+                # <PARAM> t: the amount of positive samples
 
                 # Offsets
                 gxy = t[:, 2:4]  # grid xy
@@ -896,15 +952,21 @@ class ComputeLossOTA:
             b, c = t[:, :2].long().T  # image, class
             gxy = t[:, 2:4]  # grid xy
             gwh = t[:, 4:6]  # grid wh
-            # REVIEW: add grad?
+            # REVIEW: add grad
             grad = t[:, 6] # grid rad
             gij = (gxy - offsets).long()
             gi, gj = gij.T  # grid xy indices
 
             # Append
-            print(t[i])
-            a = t[:, 6].long()  # anchor indices
-            indices.append((b, a, gj.clamp_(0, gain[3] - 1), gi.clamp_(0, gain[2] - 1)))  # image, anchor, grid indices
+            # REVIEW: change anchor index from 6 to 7
+            # a = t[:, 6].long()  # anchor indices
+
+            a = t[:, 7].long()  # anchor indices
+            # NOTE: b: image index, c: class, a: anchor index, gj: grid y coordinate, gx: grid x coordinate
+
+            # REVIEW: add grad into indices
+            # indices.append((b, a, gj.clamp_(0, gain[3] - 1), gi.clamp_(0, gain[2] - 1)))  # image, anchor, grid indices
+            indices.append((b, a, gj.clamp_(0, gain[3] - 1), gi.clamp_(0, gain[2] - 1), grad))  # image, anchor, grid indices
             anch.append(anchors[a])  # anchors
 
         return indices, anch
