@@ -640,10 +640,17 @@ class ComputeLossOTA:
                 # Classification
                 selected_tcls = targets[i][:, 1].long()
                 if self.nc > 1:  # cls loss (only if multiple classes)
-                    t = torch.full_like(ps[:, 5:], self.cn, device=device)  # targets
+
+                    # REVIEW: chante cls_loss index from 5 to 6
+                    # t = torch.full_like(ps[:, 5:], self.cn, device=device)  # targets
+
+                    t = torch.full_like(ps[:, 6:], self.cn, device=device)  # targets
                     t[range(n), selected_tcls] = self.cp
                     # NOTE: cls loss
-                    lcls += self.BCEcls(ps[:, 5:], t)  # BCE
+                    # lcls += self.BCEcls(ps[:, 5:], t)  # BCE
+
+                    # REVIEW: chante cls_loss index from 5 to 6
+                    lcls += self.BCEcls(ps[:, 6:], t)  # BCE
 
                 # Append targets to text file
                 # with open('targets.txt', 'a') as file:
@@ -654,7 +661,10 @@ class ComputeLossOTA:
                 # print(lrad)
                 lrad += self.SL1rad(ps[:, 4], targets[i][:, 6])
 
-            obji = self.BCEobj(pi[..., 4], tobj)
+            # REVIEW: change obj_loss from index 4 to 5
+            # obji = self.BCEobj(pi[..., 4], tobj)
+            obji = self.BCEobj(pi[..., 5], tobj)
+
             # NOTE: object loss
             lobj += obji * self.balance[i]  # obj loss
 
