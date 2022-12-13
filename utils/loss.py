@@ -658,8 +658,8 @@ class ComputeLossOTA:
 
                 # REVIEW: add radian loss with Smooth L1 Loss
                 # TODO: i don't know whether i get the right radian GT or not
-                # print(lrad)
-                lrad += self.SL1rad(ps[:, 4], targets[i][:, 6])
+                # print(ps[:, 4].size(), rad.size()) # both are in the same size
+                lrad += self.SL1rad(ps[:, 4].sigmoid(), rad)
 
             # REVIEW: change obj_loss from index 4 to 5
             # obji = self.BCEobj(pi[..., 4], tobj)
@@ -772,7 +772,7 @@ class ComputeLossOTA:
                 pwh = (fg_pred[:, 2:4].sigmoid() * 2) ** 2 * anch[i][idx] * self.stride[i] #/ 8.
 
                 # REVIEW: add activation function for radian value, and append
-                prad = fg_pred[:, 4].relu()
+                prad = fg_pred[:, 4].sigmoid()
                 p_rad.append(prad)
 
                 pxywh = torch.cat([pxy, pwh], dim=-1)
