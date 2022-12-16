@@ -430,6 +430,9 @@ class ComputeLoss:
         BCEcls = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([h['cls_pw']], device=device))
         BCEobj = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([h['obj_pw']], device=device))
 
+        # REVIEW: add smooth L1 loss for radian loss calculation
+        SL1rad = nn.SmoothL1Loss()
+
         # Class label smoothing https://arxiv.org/pdf/1902.04103.pdf eqn 3
         self.cp, self.cn = smooth_BCE(eps=h.get('label_smoothing', 0.0))  # positive, negative BCE targets
 
@@ -443,18 +446,26 @@ class ComputeLoss:
         #self.balance = {3: [4.0, 1.0, 0.4]}.get(det.nl, [4.0, 1.0, 0.25, 0.1, .05])  # P3-P7
         #self.balance = {3: [4.0, 1.0, 0.4]}.get(det.nl, [4.0, 1.0, 0.5, 0.4, .1])  # P3-P7
         self.ssi = list(det.stride).index(16) if autobalance else 0  # stride 16 index
-        self.BCEcls, self.BCEobj, self.gr, self.hyp, self.autobalance = BCEcls, BCEobj, model.gr, h, autobalance
+        # REVIEW: add self.SL1rad
+        self.BCEcls, self.BCEobj, self.SL1rad, self.gr, self.hyp, self.autobalance = BCEcls, BCEobj, SL1rad, model.gr, h, autobalance
         for k in 'na', 'nc', 'nl', 'anchors':
             setattr(self, k, getattr(det, k))
 
     def __call__(self, p, targets):  # predictions, targets, model
         device = targets.device
-        lcls, lbox, lobj = torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device)
-        tcls, tbox, indices, anchors = self.build_targets(p, targets)  # targets
+        # REVIEW: add lrad
+        # lcls, lbox, lobj = torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device)
+        lcls, lbox, lobj, lrad = torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device)
+
+        tcls, tbox, trad, indices, anchors = self.build_targets(p, targets)  # targets
 
         # Losses
         for i, pi in enumerate(p):  # layer index, layer predictions
             b, a, gj, gi = indices[i]  # image, anchor, gridy, gridx
+
+            # REVIEW: get target radian value
+            rad = trad[i]
+
             tobj = torch.zeros_like(pi[..., 0], device=device)  # target obj
 
             n = b.shape[0]  # number of targets
@@ -473,16 +484,27 @@ class ComputeLoss:
 
                 # Classification
                 if self.nc > 1:  # cls loss (only if multiple classes)
-                    t = torch.full_like(ps[:, 5:], self.cn, device=device)  # targets
+                    # REVIEW: change cls_loss index from 5 to 6
+                    # t = torch.full_like(ps[:, 5:], self.cn, device=device)  # targets
+                    t = torch.full_like(ps[:, 6:], self.cn, device=device)  # targets
+
                     t[range(n), tcls[i]] = self.cp
                     #t[t==self.cp] = iou.detach().clamp(0).type(t.dtype)
-                    lcls += self.BCEcls(ps[:, 5:], t)  # BCE
+                    # REVIEW: change cls_loss index from 5 to 6
+                    # lcls += self.BCEcls(ps[:, 5:], t)  # BCE
+                    lcls += self.BCEcls(ps[:, 6:], t)  # BCE
 
                 # Append targets to text file
                 # with open('targets.txt', 'a') as file:
                 #     [file.write('%11.5g ' * 4 % tuple(x) + '\n') for x in torch.cat((txy[i], twh[i]), 1)]
 
-            obji = self.BCEobj(pi[..., 4], tobj)
+                # REVIEW: add radian loss with Smooth L1 Loss
+                # print(ps[:, 4].size(), rad.size()) # both are in the same size
+                lrad += self.SL1rad(ps[:, 4].sigmoid(), rad)
+
+            # REVIEW: change obj_loss from index 4 to 5
+            # obji = self.BCEobj(pi[..., 4], tobj)
+            obji = self.BCEobj(pi[..., 5], tobj)
             lobj += obji * self.balance[i]  # obj loss
             if self.autobalance:
                 self.balance[i] = self.balance[i] * 0.9999 + 0.0001 / obji.detach().item()
@@ -492,19 +514,30 @@ class ComputeLoss:
         lbox *= self.hyp['box']
         lobj *= self.hyp['obj']
         lcls *= self.hyp['cls']
+        # TODO: add lrad multiply with its own weight, need to add hyp option in hyp file
+        # lrad *= self.hyp['rad']
         bs = tobj.shape[0]  # batch size
 
-        loss = lbox + lobj + lcls
-        return loss * bs, torch.cat((lbox, lobj, lcls, loss)).detach()
+        # REVIEW: add lrad to loss sum
+        # loss = lbox + lobj + lcls
+        loss = lbox + lobj + lcls + lrad
+
+        # REVIEW: add lrad in return
+        # return loss * bs, torch.cat((lbox, lobj, lcls, loss)).detach()
+        return loss * bs, torch.cat((lbox, lobj, lcls, lrad, loss)).detach()
 
     def build_targets(self, p, targets):
         # Build targets for compute_loss(), input targets(image,class,x,y,w,h)
         na, nt = self.na, targets.shape[0]  # number of anchors, targets
+
         # REVIEW: add trad
+        # tcls, tbox, indices, anch = [], [], [], []
         tcls, tbox, trad, indices, anch = [], [], [], [], []
+
         # REVIEW: change gain size from 7 to 8
         # gain = torch.ones(7, device=targets.device).long()  # normalized to gridspace gain
         gain = torch.ones(8, device=targets.device).long()  # normalized to gridspace gain
+
         ai = torch.arange(na, device=targets.device).float().view(na, 1).repeat(1, nt)  # same as .repeat_interleave(nt)
         targets = torch.cat((targets.repeat(na, 1, 1), ai[:, :, None]), 2)  # append anchor indices
 
@@ -543,8 +576,10 @@ class ComputeLoss:
             b, c = t[:, :2].long().T  # image, class
             gxy = t[:, 2:4]  # grid xy
             gwh = t[:, 4:6]  # grid wh
+
             # REVIEW: add grad grid for radian
             grad = t[:, 6] # grid radian
+
             gij = (gxy - offsets).long()
             gi, gj = gij.T  # grid xy indices
 
@@ -554,12 +589,13 @@ class ComputeLoss:
             tbox.append(torch.cat((gxy - gij, gwh), 1))  # box
             anch.append(anchors[a])  # anchors
             tcls.append(c)  # class
+
             # REVIEW: append trad
             trad.append(grad)
 
         # TODO: add return trad
-        # return tcls, tbox, trad, indices, anch
-        return tcls, tbox, indices, anch
+        # return tcls, tbox, indices, anch
+        return tcls, tbox, trad, indices, anch
 
 
 class ComputeLossOTA:
@@ -572,6 +608,7 @@ class ComputeLossOTA:
         # Define criteria
         BCEcls = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([h['cls_pw']], device=device))
         BCEobj = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([h['obj_pw']], device=device))
+
         # REVIEW: add smooth L1 loss for radian loss calculation
         SL1rad = nn.SmoothL1Loss()
 
@@ -611,16 +648,15 @@ class ComputeLossOTA:
             # REVIEW: get corresponding rads
             # b, a, gj, gi = bs[i], as_[i], gjs[i], gis[i]  # image, anchor, gridy, gridx
             b, a, gj, gi, rad = bs[i], as_[i], gjs[i], gis[i], rads[i]  # image, anchor, gridy, gridx, rads
-            # <PARAM> rad: current layer's all targets' radian value
+            # <INFO> rad: current layer's all targets' radian value
 
             tobj = torch.zeros_like(pi[..., 0], device=device)  # target obj
 
             n = b.shape[0]  # number of targets
             if n:
-                # TODO: get corresponding rad to the prediction subset
                 ps = pi[b, a, gj, gi]  # prediction subset corresponding to targets
                 # ps = pi[b, a, gj, gi, rad]  # prediction subset corresponding to targets
-                # <PARAM> ps: the prediction of grid_cell(gi, gj) of a's feature map of b's image
+                # <INFO> ps: the prediction of grid_cell(gi, gj) of a's feature map of b's image
 
                 # Regression
                 grid = torch.stack([gi, gj], dim=1)
@@ -640,11 +676,10 @@ class ComputeLossOTA:
                 # Classification
                 selected_tcls = targets[i][:, 1].long()
                 if self.nc > 1:  # cls loss (only if multiple classes)
-
                     # REVIEW: chante cls_loss index from 5 to 6
                     # t = torch.full_like(ps[:, 5:], self.cn, device=device)  # targets
-
                     t = torch.full_like(ps[:, 6:], self.cn, device=device)  # targets
+
                     t[range(n), selected_tcls] = self.cp
                     # NOTE: cls loss
                     # lcls += self.BCEcls(ps[:, 5:], t)  # BCE
@@ -657,7 +692,6 @@ class ComputeLossOTA:
                 #     [file.write('%11.5g ' * 4 % tuple(x) + '\n') for x in torch.cat((txy[i], twh[i]), 1)]
 
                 # REVIEW: add radian loss with Smooth L1 Loss
-                # TODO: i don't know whether i get the right radian GT or not
                 # print(ps[:, 4].size(), rad.size()) # both are in the same size
                 lrad += self.SL1rad(ps[:, 4].sigmoid(), rad)
 
@@ -900,21 +934,21 @@ class ComputeLossOTA:
         na, nt = self.na, targets.shape[0]  # number of anchors, targets
 
         indices, anch = [], []
-        # <PARAM> indices: plural form of index
+        # <INFO> indices: plural form of index
 
         # REVIEW: change gain size from 7 to 8
         # gain = torch.ones(7, device=targets.device).long()  # normalized to gridspace gain
         gain = torch.ones(8, device=targets.device).long()  # normalized to gridspace gain
-        # <PARAM> gain: use to mapping normalized xywh to corresponding feature map
+        # <INFO> gain: use to mapping normalized xywh to corresponding feature map
 
         ai = torch.arange(na, device=targets.device).float().view(na, 1).repeat(1, nt)  # same as .repeat_interleave(nt)
-        # <PARAM> ai(anchor index)[3, nt]: represents each corresponding anchor index of 3 anchors on every target aka which anchor does current target belongs to, [1, 3] -> [3, 1] -> [3, nt]
+        # <INFO> ai(anchor index)[3, nt]: represents each corresponding anchor index of 3 anchors on every target aka which anchor does current target belongs to, [1, 3] -> [3, 1] -> [3, nt]
 
         targets = torch.cat((targets.repeat(na, 1, 1), ai[:, :, None]), 2)  # append anchor indices
-        # <PARAM> targets[3, nt, 8]: repeat input target 3 times, mapping three anchor boxes per feature map, and add ai to mark the corresponding target of the anchor
+        # <INFO> targets[3, nt, 8]: repeat input target 3 times, mapping three anchor boxes per feature map, and add ai to mark the corresponding target of the anchor
 
         g = 0.5  # bias
-        # <PARAM> g: add bias for extra adjacent positive samples
+        # <INFO> g: add bias for extra adjacent positive samples
 
         off = torch.tensor([[0, 0],
                             [1, 0], [0, 1], [-1, 0], [0, -1],  # j,k,l,m
@@ -925,26 +959,26 @@ class ComputeLossOTA:
             # filter every anchor's positive samples in every layer
 
             anchors = self.anchors[i]
-            # <PARAM> anchors[3:2]: the anchor sizes of the current feature map
+            # <INFO> anchors[3:2]: the anchor sizes of the current feature map
 
             gain[2:6] = torch.tensor(p[i].shape)[[3, 2, 3, 2]]  # xyxy gain
             # keep feature map width and height in gain[2:6]
 
             # Match targets to anchors
             t = targets * gain
-            # <PARAM> t[3, nt, 8]: scale normalized xywh dimension to current feature map dimension 
+            # <INFO> t[3, nt, 8]: scale normalized xywh dimension to current feature map dimension 
 
             if nt:
                 # Matches
                 r = t[:, :, 4:6] / anchors[:, None]  # wh ratio
-                # <PARAM> r: current feature map's wh ratio with 3 anchor's
+                # <INFO> r: current feature map's wh ratio with 3 anchor's
 
                 j = torch.max(r, 1. / r).max(2)[0] < self.hyp['anchor_t']  # compare
-                # <PARAM> j[3, nt]: indicate whether each anchor box is positive or negative sample 
+                # <INFO> j[3, nt]: indicate whether each anchor box is positive or negative sample 
 
                 # j = wh_iou(anchors, t[:, 4:6]) > model.hyp['iou_t']  # iou(3,n)=wh_iou(anchors(3,2), gwh(n,2))
                 t = t[j]  # filter
-                # <PARAM> t: the amount of positive samples
+                # <INFO> t: the amount of positive samples
 
                 # Offsets
                 gxy = t[:, 2:4]  # grid xy

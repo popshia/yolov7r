@@ -214,6 +214,7 @@ def train(hyp, opt, device, tb_writer=None):
 
         # Results
         if ckpt.get('training_results') is not None:
+            print(ckpt['training_results'])
             results_file.write_text(ckpt['training_results'])  # write results.txt
 
         # Epochs
@@ -440,7 +441,9 @@ def train(hyp, opt, device, tb_writer=None):
 
             # Write
             with open(results_file, 'a') as f:
-                f.write(s + '%10.4g' * 7 % results + '\n')  # append metrics, val_loss
+                # REVIEW: change output str count from 7 to 8
+                # f.write(s + '%10.4g' * 7 % results + '\n')  # append metrics, val_loss
+                f.write(s + '%10.4g' * 8 % results + '\n')  # append metrics, val_loss
             if len(opt.name) and opt.bucket:
                 os.system('gsutil cp %s gs://%s/results/results%s.txt' % (results_file, opt.bucket, opt.name))
 

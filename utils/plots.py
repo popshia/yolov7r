@@ -153,8 +153,14 @@ def plot_images(images, targets, paths=None, fname='images.jpg', names=None, max
             image_targets = targets[targets[:, 0] == i]
             boxes = xywh2xyxy(image_targets[:, 2:6]).T
             classes = image_targets[:, 1].astype('int')
-            labels = image_targets.shape[1] == 6  # labels if no conf column
-            conf = None if labels else image_targets[:, 6]  # check for confidence presence (label vs pred)
+
+            # REVIEW: change labels condition from 6 to 7
+            # labels = image_targets.shape[1] == 6  # labels if no conf column
+            labels = image_targets.shape[1] == 7  # labels if no conf column
+
+            # REVIEW: change confidence index from 6 to 7
+            # conf = None if labels else image_targets[:, 6]  # check for confidence presence (label vs pred)
+            conf = None if labels else image_targets[:, 7]  # check for confidence presence (label vs pred)
 
             if boxes.shape[1]:
                 if boxes.max() <= 1.01:  # if normalized with tolerance 0.01
@@ -399,10 +405,14 @@ def plot_results_overlay(start=0, stop=0):  # from utils.plots import *; plot_re
 
 def plot_results(start=0, stop=0, bucket='', id=(), labels=(), save_dir=''):
     # Plot training 'results*.txt'. from utils.plots import *; plot_results(save_dir='runs/train/exp')
-    fig, ax = plt.subplots(2, 5, figsize=(12, 6), tight_layout=True)
+    # REVIEW: change subplot size from 2*5 to 2*6
+    # fig, ax = plt.subplots(2, 5, figsize=(12, 6), tight_layout=True)
+    fig, ax = plt.subplots(2, 6, figsize=(12, 6), tight_layout=True)
+
     ax = ax.ravel()
-    s = ['Box', 'Objectness', 'Classification', 'Precision', 'Recall',
-         'val Box', 'val Objectness', 'val Classification', 'mAP@0.5', 'mAP@0.5:0.95']
+    # REVIEW: add 'Radian' and 'val Radian' tags in plot
+    s = ['Box', 'Objectness', 'Classification', 'Radian', 'Precision', 'Recall',
+         'val Box', 'val Objectness', 'val Classification', 'val Radian', 'mAP@0.5', 'mAP@0.5:0.95']
     if bucket:
         # files = ['https://storage.googleapis.com/%s/results%g.txt' % (bucket, x) for x in id]
         files = ['results%g.txt' % x for x in id]
@@ -413,12 +423,19 @@ def plot_results(start=0, stop=0, bucket='', id=(), labels=(), save_dir=''):
     assert len(files), 'No results.txt files found in %s, nothing to plot.' % os.path.abspath(save_dir)
     for fi, f in enumerate(files):
         try:
-            results = np.loadtxt(f, usecols=[2, 3, 4, 8, 9, 12, 13, 14, 10, 11], ndmin=2).T
+            # REVIEW: fix indices in result column
+            # results = np.loadtxt(f, usecols=[2, 3, 4, 8, 9, 12, 13, 14, 10, 11], ndmin=2).T
+            # train/box, train/obj, train/cls, p, r, val/box, val/obj, val/cls, mAP0.5, mAP0.5/0.95
+            results = np.loadtxt(f, usecols=[2, 3, 4, 5, 9, 10, 13, 14, 15, 16, 11, 12], ndmin=2).T
+            print(results)
             n = results.shape[1]  # number of rows
             x = range(start, min(stop, n) if stop else n)
-            for i in range(10):
+            
+            # REVIEW: change for range from 10 to 12
+            # for i in range(10):
+            for i in range(12):
                 y = results[i, x]
-                if i in [0, 1, 2, 5, 6, 7]:
+                if i in [0, 1, 2, 3, 6, 7, 8, 9]:
                     y[y == 0] = np.nan  # don't show zero loss values
                     # y /= y[0]  # normalize
                 label = labels[fi] if len(labels) else f.stem
