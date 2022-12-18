@@ -115,6 +115,7 @@ def test(data,
         with torch.no_grad():
             # Run model
             t = time_synchronized()
+            # TODO: no radian value in train_out
             out, train_out = model(img, augment=augment)  # inference and training outputs
             t0 += time_synchronized() - t
 

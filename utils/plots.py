@@ -107,6 +107,9 @@ def output_to_target(output):
     targets = []
     for i, o in enumerate(output):
         for *box, conf, cls in o.cpu().numpy():
+            # TODO: add radian value to targets for test file plotting
+            # print(o.cpu().numpy())
+            # print(*box, conf, cls)
             targets.append([i, cls, *list(*xyxy2xywh(np.array(box)[None])), conf])
     return np.array(targets)
 
@@ -176,6 +179,11 @@ def plot_images(images, targets, paths=None, fname='images.jpg', names=None, max
                 cls = names[cls] if names else cls
                 if labels or conf[j] > 0.25:  # 0.25 conf thresh
                     label = '%s' % cls if labels else '%s %.1f' % (cls, conf[j])
+
+                    # REVIEW: add radian value in label
+                    print(Path(paths[i]).name[:40], image_targets[j])
+                    label += " " + str(image_targets[j, 6])
+
                     plot_one_box(box, mosaic, label=label, color=color, line_thickness=tl)
 
         # Draw image filename labels
@@ -427,7 +435,6 @@ def plot_results(start=0, stop=0, bucket='', id=(), labels=(), save_dir=''):
             # results = np.loadtxt(f, usecols=[2, 3, 4, 8, 9, 12, 13, 14, 10, 11], ndmin=2).T
             # train/box, train/obj, train/cls, p, r, val/box, val/obj, val/cls, mAP0.5, mAP0.5/0.95
             results = np.loadtxt(f, usecols=[2, 3, 4, 5, 9, 10, 13, 14, 15, 16, 11, 12], ndmin=2).T
-            print(results)
             n = results.shape[1]  # number of rows
             x = range(start, min(stop, n) if stop else n)
             
