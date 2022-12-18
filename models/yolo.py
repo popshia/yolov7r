@@ -138,9 +138,6 @@ class IDetect(nn.Module):
                 y[..., 0:2] = (y[..., 0:2] * 2. - 0.5 + self.grid[i]) * self.stride[i]  # xy
                 y[..., 2:4] = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
 
-                # TODO: add radian inference
-                # y [..., 4] = y[..., 4]  # rad
-
                 z.append(y.view(bs, -1, self.no))
 
         return x if self.training else (torch.cat(z, 1), x)
@@ -601,6 +598,7 @@ class Model(nn.Module):
                     yi[..., 1] = img_size[0] - yi[..., 1]  # de-flip ud
                 elif fi == 3:
                     yi[..., 0] = img_size[1] - yi[..., 0]  # de-flip lr
+                # TODO: radian fixing
                 y.append(yi)
             return torch.cat(y, 1), None  # augmented inference, train
         else:
@@ -745,7 +743,9 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
     logger.info('\n%3s%18s%3s%10s  %-40s%-30s' % ('', 'from', 'n', 'params', 'module', 'arguments'))
     anchors, nc, gd, gw = d['anchors'], d['nc'], d['depth_multiple'], d['width_multiple']
     na = (len(anchors[0]) // 2) if isinstance(anchors, list) else anchors  # number of anchors
-    no = na * (nc + 5)  # number of outputs = anchors * (classes + 5)
+    # REVIEW: add one more output
+    # no = na * (nc + 5)  # number of outputs = anchors * (classes + 5)
+    no = na * (nc + 6)  # number of outputs = anchors * (classes + 6)
 
     layers, save, c2 = [], [], ch[-1]  # layers, savelist, ch out
     for i, (f, n, m, args) in enumerate(d['backbone'] + d['head']):  # from, number, module, args

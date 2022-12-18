@@ -181,7 +181,7 @@ def plot_images(images, targets, paths=None, fname='images.jpg', names=None, max
                     label = '%s' % cls if labels else '%s %.1f' % (cls, conf[j])
 
                     # REVIEW: add radian value in label
-                    print(Path(paths[i]).name[:40], image_targets[j])
+                    # print(Path(paths[i]).name[:40], image_targets[j])
                     label += " " + str(image_targets[j, 6])
 
                     plot_one_box(box, mosaic, label=label, color=color, line_thickness=tl)
