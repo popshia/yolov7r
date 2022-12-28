@@ -710,8 +710,10 @@ class ComputeLossOTA:
         lbox *= self.hyp['box']
         lobj *= self.hyp['obj']
         lcls *= self.hyp['cls']
-        # TODO: add lrad multiply with its own weight, need to add hyp option in hyp file
-        # lrad *= self.hyp['rad']
+
+        # REVIEW: add lrad multiply with its own weight, need to add hyp option in hyp file
+        lrad *= self.hyp['rad']
+
         bs = tobj.shape[0]  # batch size
 
         # REVIEW: add lrad to loss sum

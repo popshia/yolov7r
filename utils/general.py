@@ -610,11 +610,16 @@ def non_max_suppression(prediction, conf_thres=0.25, iou_thres=0.45, classes=Non
     """Runs Non-Maximum Suppression (NMS) on inference results
 
     Returns:
-         list of detections, on (n,6) tensor per image [xyxy, conf, cls]
+         list of detections, on (n,7) tensor per image [xyxy, rad, conf, cls]
     """
 
-    nc = prediction.shape[2] - 5  # number of classes
-    xc = prediction[..., 4] > conf_thres  # candidates
+    # REVIEW: change prediction.shape minus from 5 to 6
+    # nc = prediction.shape[2] - 5  # number of classes
+    nc = prediction.shape[2] - 6  # number of classes
+    
+    # REVIEW: change conf index from 4 to 5
+    # xc = prediction[..., 4] > conf_thres  # candidates
+    xc = prediction[..., 5] > conf_thres  # candidates
 
     # Settings
     min_wh, max_wh = 2, 4096  # (pixels) minimum and maximum box width and height
@@ -635,12 +640,23 @@ def non_max_suppression(prediction, conf_thres=0.25, iou_thres=0.45, classes=Non
         # Cat apriori labels if autolabelling
         if labels and len(labels[xi]):
             l = labels[xi]
-            # REVIEW: change nc + 5 to nc + 6
+
+            # REVIEW: change nc+5 to nc+6
             # v = torch.zeros((len(l), nc + 5), device=x.device)
             v = torch.zeros((len(l), nc + 6), device=x.device)
+
             v[:, :4] = l[:, 1:5]  # box
-            v[:, 4] = 1.0  # conf
-            v[range(len(l)), l[:, 0].long() + 5] = 1.0  # cls
+
+            # REVIEW: add v[:, 4] for radian value
+            v[:, 4] = l[:, 5]  # radian
+
+            # REVIEW: change conf index from 4 to 5
+            # v[:, 4] = 1.0  # conf
+            v[:, 5] = 1.0  # conf
+
+            # REVIEW: change from +5 to +6
+            # v[range(len(l)), l[:, 0].long() + 5] = 1.0  # cls
+            v[range(len(l)), l[:, 0].long() + 6] = 1.0  # cls
             x = torch.cat((x, v), 0)
 
         # If none remain process next image
@@ -649,25 +665,43 @@ def non_max_suppression(prediction, conf_thres=0.25, iou_thres=0.45, classes=Non
 
         # Compute conf
         if nc == 1:
-            x[:, 5:] = x[:, 4:5] # for models with one class, cls_loss is 0 and cls_conf is always 0.5,
+            # REVIEW: change both index to corresponding index
+            # x[:, 5:] = x[:, 4:5] # for models with one class, cls_loss is 0 and cls_conf is always 0.5,
                                  # so there is no need to multiplicate.
+            x[:, 6:] = x[:, 5:6] # for models with one class, cls_loss is 0 and cls_conf is always 0.5,
         else:
-            x[:, 5:] *= x[:, 4:5]  # conf = obj_conf * cls_conf
+            # REVIEW: change both index to corresponding index
+            # x[:, 5:] *= x[:, 4:5]  # conf = obj_conf * cls_conf
+            x[:, 6:] *= x[:, 5:6]  # conf = obj_conf * cls_conf
 
         # Box (center x, center y, width, height) to (x1, y1, x2, y2)
         box = xywh2xyxy(x[:, :4])
 
+        # REVIEW: add radian
+        rad = x[:, 4:5]
+
+        # TODO: multilabeling index fixing
         # Detections matrix nx6 (xyxy, conf, cls)
         if multi_label:
-            i, j = (x[:, 5:] > conf_thres).nonzero(as_tuple=False).T
-            x = torch.cat((box[i], x[i, j + 5, None], j[:, None].float()), 1)
+            # REVIEW: change indices
+            # i, j = (x[:, 5:] > conf_thres).nonzero(as_tuple=False).T
+            # x = torch.cat((box[i], x[i, j + 5, None], j[:, None].float()), 1)
+            i, j = (x[:, 6:] > conf_thres).nonzero(as_tuple=False).T
+            x = torch.cat((box[i], x[i, j + 6, None], j[:, None].float()), 1)
         else:  # best class only
-            conf, j = x[:, 5:].max(1, keepdim=True)
-            x = torch.cat((box, conf, j.float()), 1)[conf.view(-1) > conf_thres]
+            # REVIEW: change index
+            # conf, j = x[:, 5:].max(1, keepdim=True)
+            conf, j = x[:, 6:].max(1, keepdim=True)
+
+            # REVIEW: cat radian
+            # x = torch.cat((box, conf, j.float()), 1)[conf.view(-1) > conf_thres]
+            x = torch.cat((box, rad, conf, j.float()), 1)[conf.view(-1) > conf_thres]
 
         # Filter by class
         if classes is not None:
-            x = x[(x[:, 5:6] == torch.tensor(classes, device=x.device)).any(1)]
+            # REVIEW: change class index
+            # x = x[(x[:, 5:6] == torch.tensor(classes, device=x.device)).any(1)]
+            x = x[(x[:, 6:7] == torch.tensor(classes, device=x.device)).any(1)]
 
         # Apply finite constraint
         # if not torch.isfinite(x).all():
@@ -678,10 +712,15 @@ def non_max_suppression(prediction, conf_thres=0.25, iou_thres=0.45, classes=Non
         if not n:  # no boxes
             continue
         elif n > max_nms:  # excess boxes
-            x = x[x[:, 4].argsort(descending=True)[:max_nms]]  # sort by confidence
+            # REVIEW: fix conf index
+            # x = x[x[:, 4].argsort(descending=True)[:max_nms]]  # sort by confidence
+            x = x[x[:, 5].argsort(descending=True)[:max_nms]]  # sort by confidence
 
         # Batched NMS
-        c = x[:, 5:6] * (0 if agnostic else max_wh)  # classes
+        # REVIEW: fix class index
+        # c = x[:, 5:6] * (0 if agnostic else max_wh)  # classes
+        c = x[:, 6:7] * (0 if agnostic else max_wh)  # classes
+        # print(len(x[0,:4]), len(c), len(x[0]))
         boxes, scores = x[:, :4] + c, x[:, 4]  # boxes (offset by class), scores
         i = torchvision.ops.nms(boxes, scores, iou_thres)  # NMS
         if i.shape[0] > max_det:  # limit detections

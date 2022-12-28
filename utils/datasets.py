@@ -487,6 +487,9 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                     nf += 1  # label found
                     with open(lb_file, 'r') as f:
                         l = [x.split() for x in f.read().strip().splitlines()]
+                        # NOTE: this is where the labels be read
+                        # if lb_file == "/home/lab602.our_container/.pipeline/11077006/yolov7r/HRSC2016_blabels/train/100001350.txt":
+                        #     print(lb_file, l)
                         if any([len(x) > 8 for x in l]):  # is segment
                             classes = np.array([x[0] for x in l], dtype=np.float32)
                             segments = [np.array(x[1:], dtype=np.float32).reshape(-1, 2) for x in l]  # (cls, xy1...)
@@ -538,6 +541,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
 
         hyp = self.hyp
         mosaic = self.mosaic and random.random() < hyp['mosaic']
+        # TODO: mosaic fucks up my GT radian value
         if mosaic:
             # Load mosaic
             if random.random() < 0.8:
@@ -572,6 +576,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         if self.augment:
             # Augment imagespace
             if not mosaic:
+                # TODO: random perspective fucks up my GT radian values (?)
                 img, labels = random_perspective(img, labels,
                                                  degrees=hyp['degrees'],
                                                  translate=hyp['translate'],
@@ -622,9 +627,9 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                 if nL:
                     labels[:, 1] = 1 - labels[:, 1]
                     for label in labels:
-                        if 0 <= label[5] <= 0.25 or 0.5 <= label[5] <= 0.75:
+                        if 0 < label[5] < 0.25 or 0.5 < label[5] < 0.75:
                             label[5] = label[5] + 0.25
-                        else:
+                        elif 0.25 < label[5] < 0.5 or 0.75 < label[5] < 1:
                             label[5] = label[5] - 0.25
 
         # REVIEW: change torch.zeros size from (nL, 6) to (nL, 7)
@@ -724,6 +729,11 @@ def load_mosaic(self, index):
     yc, xc = [int(random.uniform(-x, 2 * s + x)) for x in self.mosaic_border]  # mosaic center x, y
     indices = [index] + random.choices(self.indices, k=3)  # 3 additional image indices
     for i, index in enumerate(indices):
+
+        # if self.img_files[index].find("100000632") != -1:
+        #     for idx in indices:
+        #         print(self.img_files[idx])
+
         # Load image
         img, _, (h, w) = load_image(self, index)
 
@@ -756,7 +766,9 @@ def load_mosaic(self, index):
 
     # Concat/clip labels
     labels4 = np.concatenate(labels4, 0)
-    for x in (labels4[:, 1:], *segments4):
+    # REVIEW: change index for position values
+    # for x in (labels4[:, 1:], *segments4):
+    for x in (labels4[:, 1:5], *segments4):
         np.clip(x, 0, 2 * s, out=x)  # clip when using random_perspective()
     # img4, labels4 = replicate(img4, labels4)  # replicate
 
