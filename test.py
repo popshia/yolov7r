@@ -123,11 +123,10 @@ def test(data,
             if compute_loss:
                 # REVIEW: change compute_loss return index from 3 to 4
                 # loss += compute_loss([x.float() for x in train_out], targets)[1][:3]  # box, obj, cls
-                loss += compute_loss([x.float() for x in train_out], targets)[1][:4]  # box, obj, cls
+                loss += compute_loss([x.float() for x in train_out], targets)[1][:4]  # box, obj, cls, rad
 
             # Run NMS
             # REVIEW: exclude radian value in targets by changing targets[:, 2:] to targets[:, 2:6]
-            # TODO: should I include radian value in NMS (?)
             # targets[:, 2:] *= torch.Tensor([width, height, width, height]).to(device)  # to pixels
             targets[:, 2:6] *= torch.Tensor([width, height, width, height]).to(device)  # to pixels
             lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if save_hybrid else []  # for autolabelling
@@ -200,7 +199,10 @@ def test(data,
                 # Per target class
                 for cls in torch.unique(tcls_tensor):
                     ti = (cls == tcls_tensor).nonzero(as_tuple=False).view(-1)  # prediction indices
-                    pi = (cls == pred[:, 5]).nonzero(as_tuple=False).view(-1)  # target indices
+
+                    # REVIEW: change pred index from 5 to 6
+                    # pi = (cls == pred[:, 5]).nonzero(as_tuple=False).view(-1)  # target indices
+                    pi = (cls == pred[:, 6]).nonzero(as_tuple=False).view(-1)  # target indices
 
                     # Search for detections
                     if pi.shape[0]:
@@ -219,7 +221,10 @@ def test(data,
                                     break
 
             # Append statistics (correct, conf, pcls, tcls)
-            stats.append((correct.cpu(), pred[:, 4].cpu(), pred[:, 5].cpu(), tcls))
+            # stats.append((correct.cpu(), pred[:, 4].cpu(), pred[:, 5].cpu(), tcls))
+
+            # REVIEW: change cls index from 5 to 6
+            stats.append((correct.cpu(), pred[:, 4].cpu(), pred[:, 6].cpu(), tcls))
 
         # Plot images
         if plots and batch_i < 3:
@@ -238,6 +243,7 @@ def test(data,
     else:
         nt = torch.zeros(1)
 
+    # TODO: p, r has no value
     # Print results
     pf = '%20s' + '%12i' * 2 + '%12.3g' * 4  # print format
     print(pf % ('all', seen, nt.sum(), mp, mr, map50, map))

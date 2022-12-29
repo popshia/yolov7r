@@ -11,7 +11,7 @@ cls_pw: 1.0  # cls BCELoss positive_weight
 obj: 0.7  # obj loss gain (scale with pixels)
 obj_pw: 1.0  # obj BCELoss positive_weight
 # REVIEW: add radian loss gain
-rad: 0.0  # rad loss gain
+# rad: 0.5  # rad loss gain
 iou_t: 0.20  # IoU training threshold
 anchor_t: 4.0  # anchor-multiple threshold
 # anchors: 3  # anchors per output layer (0 to ignore)

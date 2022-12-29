@@ -109,6 +109,7 @@ def output_to_target(output):
         # REVIEW: add radian value to targets for test file plotting
         # for *box, conf, cls in o.cpu().numpy():
         for *box, rad, conf, cls in o.cpu().numpy():
+            # print(*box, rad, conf, cls)
             # targets.append([i, cls, *list(*xyxy2xywh(np.array(box)[None])), conf])
             targets.append([i, cls, *list(*xyxy2xywh(np.array(box)[None])), rad, conf])
     return np.array(targets)

@@ -392,6 +392,7 @@ def train(hyp, opt, device, tb_writer=None):
                 mloss = (mloss * i + loss_items) / (i + 1)  # update mean losses
                 mem = '%.3gG' % (torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0)  # (GB)
 
+                # print("*mloss: ", *mloss)
                 # REVIEW: change s format from *6 to *7
                 # s = ('%10s' * 2 + '%10.4g' * 6) % (
                 #     '%g/%g' % (epoch, epochs - 1), mem, *mloss, targets.shape[0], imgs.shape[-1])

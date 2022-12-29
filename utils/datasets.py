@@ -729,11 +729,6 @@ def load_mosaic(self, index):
     yc, xc = [int(random.uniform(-x, 2 * s + x)) for x in self.mosaic_border]  # mosaic center x, y
     indices = [index] + random.choices(self.indices, k=3)  # 3 additional image indices
     for i, index in enumerate(indices):
-
-        # if self.img_files[index].find("100000632") != -1:
-        #     for idx in indices:
-        #         print(self.img_files[idx])
-
         # Load image
         img, _, (h, w) = load_image(self, index)
 

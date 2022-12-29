@@ -712,7 +712,7 @@ class ComputeLossOTA:
         lcls *= self.hyp['cls']
 
         # REVIEW: add lrad multiply with its own weight, need to add hyp option in hyp file
-        lrad *= self.hyp['rad']
+        # lrad *= self.hyp['rad']
 
         bs = tobj.shape[0]  # batch size
 
@@ -722,6 +722,7 @@ class ComputeLossOTA:
 
         # REVIEW: add lrad in return
         # return loss * bs, torch.cat((lbox, lobj, lcls, loss)).detach()
+        # print("lbox: {}, lobj: {}, lcls: {}, lrad: {}, loss: {}".format(lbox, lobj, lcls, lrad, loss))
         return loss * bs, torch.cat((lbox, lobj, lcls, lrad, loss)).detach()
 
     def build_targets(self, p, targets, imgs):
