@@ -687,7 +687,9 @@ def non_max_suppression(prediction, conf_thres=0.25, iou_thres=0.45, classes=Non
             # i, j = (x[:, 5:] > conf_thres).nonzero(as_tuple=False).T
             # x = torch.cat((box[i], x[i, j + 5, None], j[:, None].float()), 1)
             i, j = (x[:, 6:] > conf_thres).nonzero(as_tuple=False).T
-            x = torch.cat((box[i], x[i, j + 6, None], j[:, None].float()), 1)
+            # REVIEW: add rad to x
+            # x = torch.cat((box[i], x[i, j + 6, None], j[:, None].float()), 1)
+            x = torch.cat((box[i], rad[i], x[i, j + 6, None], j[:, None].float()), 1)
         else:  # best class only
             # REVIEW: change index
             # conf, j = x[:, 5:].max(1, keepdim=True)
@@ -720,6 +722,9 @@ def non_max_suppression(prediction, conf_thres=0.25, iou_thres=0.45, classes=Non
         # REVIEW: fix class index
         # c = x[:, 5:6] * (0 if agnostic else max_wh)  # classes
         c = x[:, 6:7] * (0 if agnostic else max_wh)  # classes
+        print(x.shape)
+        print(c.shape)
+        print(x[0])
         boxes, scores = x[:, :4] + c, x[:, 4]  # boxes (offset by class), scores
         i = torchvision.ops.nms(boxes, scores, iou_thres)  # NMS
         if i.shape[0] > max_det:  # limit detections

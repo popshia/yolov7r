@@ -43,6 +43,7 @@ coco128/
 VOC/
 HRSC2016_blabels/
 HRSC2016_rlabels/
+road_data/
 
 coco2017labels-segments.zip
 test2017.zip
