@@ -623,6 +623,7 @@ if __name__ == '__main__':
         hyp = yaml.load(f, Loader=yaml.SafeLoader)  # load hyps
 
     # Train
+    # TODO: 射了
     logger.info(opt)
     if not opt.evolve:
         tb_writer = None  # init loggers
