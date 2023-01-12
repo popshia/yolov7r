@@ -524,13 +524,76 @@ def plot_targets_and_anchors(tb_writer, model, iters, epoch, imgs, indices, targ
     for img_id, img in enumerate(imgs):
         img_with_all_anchors = copy.deepcopy(img)
 
+        print("anchor stride list length: ", len(anchor_stride_list))
+
         for i, anchor_stride in enumerate(anchor_stride_list):
             img_with_one_anchor = copy.deepcopy(img)
             b, a, gj, gi = indices[i]
             yolo_layer_anchor_filename = str(tb_writer.log_dir / 'train_batch{}_layer{}_anchors.jpg'.format(iters, i))
 
-            for tbox_id, (box, anchor_wh, offset) in enumerate(zip(targets[i, 2:6], anchors[i])):
-                
-    
+            for tbox_id, (box, anchor_wh) in enumerate(zip(targets[i, 2:6], anchors[i])):
+                if b[tbox_id] == img_id:
+                    x, y, w, h = box
+                    w = anchor_wh[0]
+                    h = anchor_wh[1]
+                    x = (x+gi[tbox_id])*anchor_stride
+                    y = (x+gj[tbox_id])*anchor_stride
+                    w *= anchor_stride
+                    h *= anchor_stride
+
+                    box = xywh2xyxy(torch.stack((x, y, w, h))[None, :].cpu().numpy().squeeze())
+
+                    if i == 0:   color = (255, 0, 0)
+                    elif i == 1: color = (0, 255, 0)
+                    elif i == 2: color = (0, 0, 255)
+
+                    thickness = 2
+
+                    cv2.rectangle(img_with_one_anchor, (box[0], box[1]), (box[2], box[3]), color, thickness)
+                    cv2.rectangle(img_with_all_anchors, (box[0], box[1]), (box[2], box[3]), color, thickness)
+            
+            cv2.imwrite(yolo_layer_anchor_filename, img_with_one_anchor)
+
+    if iters == 0: cv2.imwrite(all_anchors_filename, img_with_all_anchors)
+    tb_writer.add_image('train_batch_all_anchors.jpg', img_with_all_anchors, dataformat='HWC', global_step=epoch)
+
 
 def plot_pred_results():
+    """
+    preds:
+        from inf_out: (num_img_in_batch, anchors*grid_h*frid_w, 15[x,y,w,h,conf,cls1,...,clsn,extra1,...])
+        from nms_out: (num_img_in_batch, 7[x,y,w,h,θ,conf,classid])
+    """
+
+    min_wh, max_wh = 2, 4096  # (pixels) minimum and maximum box width and height
+
+    x = preds[0]  # 只存batch中第一張
+    
+    if x is None: return None
+
+    nms_out = x.shape[1] == 7  # [x,y,w,h,θ,conf,classid]
+    conf = x[:,5] if nms_out else x[:,4]  # check for confidence presence (gt vs pred)
+
+    x = x[conf>conf_thres]
+    # x = x[((x[:, 2:4] > min_wh) & (x[:, 2:4] < max_wh)).all(1)]  # width-height
+
+    if x.shape[0] > 0:
+        if theta_format.find('dhxdhy') != -1:
+            dhx,dhy = x[:, -num_extra_outputs]-x[:,0], x[:, -num_extra_outputs+1]-x[:,1]
+            theta = torch.atan2(-dhy,dhx)
+        elif theta_format.find('sincos') != -1:
+            theta = torch.atan2(x[:, -num_extra_outputs], x[:, -num_extra_outputs+1])
+
+        theta = torch.where(theta<0, theta+2*math.pi, theta)
+        rbox_xywhtheta = (torch.cat((x[:,:4],theta.view(-1,1)),dim=1).cpu().numpy())
+        # print('in general.py save_and_plot_valid_result_to_tensorboard rbox dtype', rbox_xywhtheta.dtype)
+        if nms_out: rbox_4xy = xywhtheta24xy_new(x[:,:5])
+        else: rbox_4xy = xywhtheta24xy_new(rbox_xywhtheta)
+
+        for idx, pts in enumerate(rbox_4xy):
+            if nms_out: draw_one_polygon(img, pts, int(x[idx,6]), True, 1)
+            else: draw_one_polygon(img, pts, 4, True, 1)  # before nms, box no class defined, assign color by color_board
+
+    cv2.imwrite(str(save_dir)+os.sep+f, img)    
+    # result = plot_images(images=img, targets=targets, paths=paths, fname=f, max_size=1024, theta_format=theta_format, num_extra_outputs=num_extra_outputs, plotontb=True)
+    tb_writer.add_image(f, img, dataformats='HWC', global_step=epoch)
