@@ -7,6 +7,8 @@ import torch.nn.functional as F
 from utils.general import bbox_iou, bbox_alpha_iou, box_iou, box_giou, box_diou, box_ciou, xywh2xyxy
 from utils.torch_utils import is_parallel
 
+from utils.plots import plot_targets_and_anchors
+
 
 def smooth_BCE(eps=0.1):  # https://github.com/ultralytics/yolov3/issues/238#issuecomment-598028441
     # return positive, negative label smoothing BCE targets
@@ -514,8 +516,10 @@ class ComputeLoss:
         lbox *= self.hyp['box']
         lobj *= self.hyp['obj']
         lcls *= self.hyp['cls']
+
         # TODO: add lrad multiply with its own weight, need to add hyp option in hyp file
         # lrad *= self.hyp['rad']
+
         bs = tobj.shape[0]  # batch size
 
         # REVIEW: add lrad to loss sum
@@ -628,17 +632,22 @@ class ComputeLossOTA:
         for k in 'na', 'nc', 'nl', 'anchors', 'stride':
             setattr(self, k, getattr(det, k))
 
-    def __call__(self, p, targets, imgs):  # predictions, targets, model   
+    # REVIEW: add other needed parameters for ploting anchors
+    # def __call__(self, p, targets, imgs):  # predictions, targets, model   
+    def __call__(self, p, targets, imgs, tb_writer, iters, model, epoch):  # predictions, targets, model   
         device = targets.device
 
         # REVIEW: add radian loss "lrad"
         # lcls, lbox, lobj = torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device)
         lcls, lbox, lobj, lrad = torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device)
 
-        # REVIEW: add target rads
-        # TODO: figure out rads' purpose
+        # REVIEW: add target rads and indices
         # bs, as_, gjs, gis, targets, anchors = self.build_targets(p, targets, imgs)
-        bs, as_, gjs, gis, targets, anchors, rads = self.build_targets(p, targets, imgs)
+        bs, as_, gjs, gis, targets, anchors, rads, indices = self.build_targets(p, targets, imgs)
+
+        # REVIEW: add draw anchors to tensorboard
+        if tb_writer and iters == 0:
+            plot_targets_and_anchors(tb_writer, model, iters, epoch, imgs, indices, targets, anchors, rads)
 
         pre_gen_gains = [torch.tensor(pp.shape, device=device)[[3, 2, 3, 2]] for pp in p] 
     
@@ -711,7 +720,7 @@ class ComputeLossOTA:
         lobj *= self.hyp['obj']
         lcls *= self.hyp['cls']
 
-        # REVIEW: add lrad multiply with its own weight, need to add hyp option in hyp file
+        # TODO: add lrad multiply with its own weight, need to add hyp option in hyp file
         # lrad *= self.hyp['rad']
 
         bs = tobj.shape[0]  # batch size
@@ -930,7 +939,7 @@ class ComputeLossOTA:
                 # REVIEW: add matching_rads
                 matching_rads[i] = torch.tensor([], device='cuda:0', dtype=torch.int64)
 
-        return matching_bs, matching_as, matching_gjs, matching_gis, matching_targets, matching_anchs, matching_rads
+        return matching_bs, matching_as, matching_gjs, matching_gis, matching_targets, matching_anchs, matching_rads, indices
 
     def find_3_positive(self, p, targets):
         # Build targets for compute_loss(), input targets(image,class,x,y,w,h), find 3 positive samples from ground truth

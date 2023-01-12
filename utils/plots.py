@@ -1,5 +1,6 @@
 # Plotting utils
 
+import enum
 import glob
 import math
 import os
@@ -20,6 +21,7 @@ from scipy.signal import butter, filtfilt
 
 from utils.general import xywh2xyxy, xyxy2xywh
 from utils.metrics import fitness
+from utils.torch_utils import is_parallel
 
 # Settings
 matplotlib.rc('font', **{'size': 11})
@@ -512,3 +514,23 @@ def plot_skeleton_kpts(im, kpts, steps, orig_shape=None):
         if pos2[0] % 640 == 0 or pos2[1] % 640 == 0 or pos2[0]<0 or pos2[1]<0:
             continue
         cv2.line(im, pos1, pos2, (int(r), int(g), int(b)), thickness=2)
+
+def plot_targets_and_anchors(tb_writer, model, iters, epoch, imgs, indices, targets, anchors, rads):
+    multi_gpu = is_parallel(model)
+    yolo_layer_id_list = model.module.yolo_layers if multi_gpu else model.yolo_layers
+    anchor_stride_list = [model.module.module_list[yolo_layer_id_list].stride if multi_gpu else model.module_list[yolo_layer_id].stride for yolo_layer_id in yolo_layer_id_list]
+    all_anchors_filename = str(tb_writer.log_dir / 'train_batch{}_all_anchors.jpg'.format(iters))
+
+    for img_id, img in enumerate(imgs):
+        img_with_all_anchors = copy.deepcopy(img)
+
+        for i, anchor_stride in enumerate(anchor_stride_list):
+            img_with_one_anchor = copy.deepcopy(img)
+            b, a, gj, gi = indices[i]
+            yolo_layer_anchor_filename = str(tb_writer.log_dir / 'train_batch{}_layer{}_anchors.jpg'.format(iters, i))
+
+            for tbox_id, (box, anchor_wh, offset) in enumerate(zip(targets[i, 2:6], anchors[i])):
+                
+    
+
+def plot_pred_results():
