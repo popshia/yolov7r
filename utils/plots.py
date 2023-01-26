@@ -566,31 +566,16 @@ def plot_pred_results(tb_writer, f, preds, conf_thres, img, save_dir, epoch):
     """
 
     min_wh, max_wh = 2, 4096  # (pixels) minimum and maximum box width and height
-
-    x = preds[0]  # 只存batch中第一張
-    
+    x = preds[0]
     if x is None: return None
 
-    nms_out = x.shape[1] == 7  # [x,y,w,h,θ,conf,classid]
-    conf = x[:,5] if nms_out else x[:,4]  # check for confidence presence (gt vs pred)
-
+    conf = x[:,5]
     x = x[conf>conf_thres]
-    # x = x[((x[:, 2:4] > min_wh) & (x[:, 2:4] < max_wh)).all(1)]  # width-height
 
     if x.shape[0] > 0:
-        if theta_format.find('dhxdhy') != -1:
-            dhx,dhy = x[:, -num_extra_outputs]-x[:,0], x[:, -num_extra_outputs+1]-x[:,1]
-            theta = torch.atan2(-dhy,dhx)
-        elif theta_format.find('sincos') != -1:
-            theta = torch.atan2(x[:, -num_extra_outputs], x[:, -num_extra_outputs+1])
+        box = xywh2xyxy(x[:, :4])
 
-        theta = torch.where(theta<0, theta+2*math.pi, theta)
-        rbox_xywhtheta = (torch.cat((x[:,:4],theta.view(-1,1)),dim=1).cpu().numpy())
-        # print('in general.py save_and_plot_valid_result_to_tensorboard rbox dtype', rbox_xywhtheta.dtype)
-        if nms_out: rbox_4xy = xywhtheta24xy_new(x[:,:5])
-        else: rbox_4xy = xywhtheta24xy_new(rbox_xywhtheta)
-
-        for idx, pts in enumerate(rbox_4xy):
+        for idx, pts in enumerate(box):
             if nms_out: draw_one_polygon(img, pts, int(x[idx,6]), True, 1)
             else: draw_one_polygon(img, pts, 4, True, 1)  # before nms, box no class defined, assign color by color_board
 

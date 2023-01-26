@@ -5,7 +5,7 @@ from pathlib import Path
 from threading import Thread
 
 import numpy as np
-from scipy.sparse import random
+import random
 import torch
 import yaml
 from tqdm import tqdm
@@ -127,7 +127,10 @@ def test(data,
             t = time_synchronized()
             out, train_out = model(img, augment=augment)  # inference and training outputs
             t0 += time_synchronized() - t
-            print(len(out), len(train_out))
+
+            if batch_i == 0:
+                print("len(out):" , np.array(torch.Tensor.cpu(out)).shape)
+                print("len(train_out):", np.array(torch.Tensor.cpu(out)).shape) 
 
             # Compute loss
             if compute_loss:
