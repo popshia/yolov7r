@@ -519,7 +519,7 @@ def plot_targets_and_anchors(tb_writer, model, iters, epoch, imgs, indices, targ
     multi_gpu = is_parallel(model)
     yolo_layer_id_list = model.module.yolo_layers if multi_gpu else model.yolo_layers
     anchor_stride_list = [model.module.module_list[yolo_layer_id_list].stride if multi_gpu else model.module_list[yolo_layer_id].stride for yolo_layer_id in yolo_layer_id_list]
-    all_anchors_filename = str(tb_writer.log_dir / 'train_batch{}_all_anchors.jpg'.format(iters))
+    all_anchors_filename = str(tb_writer.log_dir / "train_batch{}_all_anchors.jpg".format(iters))
 
     for img_id, img in enumerate(imgs):
         img_with_all_anchors = copy.deepcopy(img)
@@ -529,7 +529,7 @@ def plot_targets_and_anchors(tb_writer, model, iters, epoch, imgs, indices, targ
         for i, anchor_stride in enumerate(anchor_stride_list):
             img_with_one_anchor = copy.deepcopy(img)
             b, a, gj, gi = indices[i]
-            yolo_layer_anchor_filename = str(tb_writer.log_dir / 'train_batch{}_layer{}_anchors.jpg'.format(iters, i))
+            yolo_layer_anchor_filename = str(tb_writer.log_dir / "train_batch{}_layer{}_anchors.jpg".format(iters, i))
 
             for tbox_id, (box, anchor_wh) in enumerate(zip(targets[i, 2:6], anchors[i])):
                 if b[tbox_id] == img_id:
@@ -555,10 +555,10 @@ def plot_targets_and_anchors(tb_writer, model, iters, epoch, imgs, indices, targ
             cv2.imwrite(yolo_layer_anchor_filename, img_with_one_anchor)
 
     if iters == 0: cv2.imwrite(all_anchors_filename, img_with_all_anchors)
-    tb_writer.add_image('train_batch_all_anchors.jpg', img_with_all_anchors, dataformat='HWC', global_step=epoch)
+    tb_writer.add_image("train_batch_all_anchors.jpg", img_with_all_anchors, dataformat='HWC', global_step=epoch)
 
 
-def plot_pred_results():
+def plot_pred_results(tb_writer, f, preds, conf_thres, img, save_dir, epoch):
     """
     preds:
         from inf_out: (num_img_in_batch, anchors*grid_h*frid_w, 15[x,y,w,h,conf,cls1,...,clsn,extra1,...])

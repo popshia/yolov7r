@@ -5,6 +5,7 @@ from pathlib import Path
 from threading import Thread
 
 import numpy as np
+from scipy.sparse import random
 import torch
 import yaml
 from tqdm import tqdm
@@ -14,8 +15,10 @@ from utils.datasets import create_dataloader
 from utils.general import coco80_to_coco91_class, check_dataset, check_file, check_img_size, check_requirements, \
     box_iou, non_max_suppression, scale_coords, xyxy2xywh, xywh2xyxy, set_logging, increment_path, colorstr
 from utils.metrics import ap_per_class, ConfusionMatrix
-from utils.plots import plot_images, output_to_target, plot_study_txt
+from utils.plots import plot_images, output_to_target, plot_study_txt, plot_pred_results
 from utils.torch_utils import select_device, time_synchronized, TracedModel
+
+import copy
 
 
 def test(data,
@@ -40,7 +43,10 @@ def test(data,
          half_precision=True,
          trace=False,
          is_coco=False,
-         v5_metric=False):
+         v5_metric=False,
+         # REVIEW: add tb_writer, epoch
+         tb_writer=None,
+         epoch=-1):
     # Initialize/load model and set device
     training = model is not None
     if training:  # called by train.py
@@ -105,6 +111,10 @@ def test(data,
     loss = torch.zeros(4, device=device)
 
     jdict, stats, ap, ap_class, wandb_images = [], [], [], [], []
+
+    # REVIEW: add rand_batch
+    rand_batch = random.randint(0, len(dataloader)-1)
+
     for batch_i, (img, targets, paths, shapes) in enumerate(tqdm(dataloader, desc=s)):
         img = img.to(device, non_blocking=True)
         img = img.half() if half else img.float()  # uint8 to fp16/32
@@ -115,9 +125,9 @@ def test(data,
         with torch.no_grad():
             # Run model
             t = time_synchronized()
-            # TODO: no radian value in train_out
             out, train_out = model(img, augment=augment)  # inference and training outputs
             t0 += time_synchronized() - t
+            print(len(out), len(train_out))
 
             # Compute loss
             if compute_loss:
@@ -130,9 +140,18 @@ def test(data,
             # targets[:, 2:] *= torch.Tensor([width, height, width, height]).to(device)  # to pixels
             targets[:, 2:6] *= torch.Tensor([width, height, width, height]).to(device)  # to pixels
             lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if save_hybrid else []  # for autolabelling
+
+            # REVIEW: add plotting for outputs befrore NMS
+            if training and batch_i == rand_batch:
+                plot_pred_results(tb_writer, "test_before_nms.jpg", out, conf_thres, copy.deepcopy(img[0]), save_dir, epoch)
+
+
             t = time_synchronized()
             out = non_max_suppression(out, conf_thres=conf_thres, iou_thres=iou_thres, labels=lb, multi_label=True)
             t1 += time_synchronized() - t
+
+        if training and batch_i == rand_batch:
+            plot_pred_results(tb_writer, "test_after_nms.jpg", out, conf_thres, copy.deepcopy(img[0]), save_dir, epoch)
 
         # Statistics per image
         for si, pred in enumerate(out):
