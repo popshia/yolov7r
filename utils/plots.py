@@ -559,26 +559,19 @@ def plot_targets_and_anchors(tb_writer, model, iters, epoch, imgs, indices, targ
 
 
 def plot_pred_results(tb_writer, f, preds, conf_thres, img, save_dir, epoch):
-    """
-    preds:
-        from inf_out: (num_img_in_batch, anchors*grid_h*frid_w, 15[x,y,w,h,conf,cls1,...,clsn,extra1,...])
-        from nms_out: (num_img_in_batch, 7[x,y,w,h,θ,conf,classid])
-    """
-
-    min_wh, max_wh = 2, 4096  # (pixels) minimum and maximum box width and height
     x = preds[0]
+    color = (255, 0, 0)
+    thickness = 2
     if x is None: return None
 
     conf = x[:,5]
     x = x[conf>conf_thres]
 
     if x.shape[0] > 0:
-        box = xywh2xyxy(x[:, :4])
+        boxes = xywh2xyxy(x[:, :4])
 
-        for idx, pts in enumerate(box):
-            if nms_out: draw_one_polygon(img, pts, int(x[idx,6]), True, 1)
-            else: draw_one_polygon(img, pts, 4, True, 1)  # before nms, box no class defined, assign color by color_board
+        for box in boxes:
+            cv2.rectangle(img, (box[0], box[1]), (box[2], box[3]), color, thickness)
 
     cv2.imwrite(str(save_dir)+os.sep+f, img)    
-    # result = plot_images(images=img, targets=targets, paths=paths, fname=f, max_size=1024, theta_format=theta_format, num_extra_outputs=num_extra_outputs, plotontb=True)
     tb_writer.add_image(f, img, dataformats='HWC', global_step=epoch)
