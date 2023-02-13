@@ -645,7 +645,7 @@ class ComputeLossOTA:
         # bs, as_, gjs, gis, targets, anchors = self.build_targets(p, targets, imgs)
         bs, as_, gjs, gis, targets, anchors, rads, indices = self.build_targets(p, targets, imgs)
 
-        # REVIEW: add draw anchors to tensorboard
+        # TODO: add draw anchors to tensorboard
         # if tb_writer and iters == 0:
         #     plot_targets_and_anchors(tb_writer, model, iters, epoch, imgs, indices, targets, anchors, rads)
 

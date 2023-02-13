@@ -5,7 +5,7 @@ import glob
 import math
 import os
 import random
-from copy import copy
+import copy
 from pathlib import Path
 
 import cv2
@@ -559,6 +559,7 @@ def plot_targets_and_anchors(tb_writer, model, iters, epoch, imgs, indices, targ
 
 
 def plot_pred_results(tb_writer, f, preds, conf_thres, img, save_dir, epoch):
+    print(type(img))
     x = preds[0]
     color = (255, 0, 0)
     thickness = 2

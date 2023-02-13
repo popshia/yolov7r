@@ -531,6 +531,10 @@ class Model(nn.Module):
             logger.info(f'Overriding model.yaml anchors with anchors={anchors}')
             self.yaml['anchors'] = round(anchors)  # override yaml value
         self.model, self.save = parse_model(deepcopy(self.yaml), ch=[ch])  # model, savelist
+
+        # REVIEW: add get yolo_layers
+        self.yolo_layers = get_yolo_layers(self.model)
+
         self.names = [str(i) for i in range(self.yaml['nc'])]  # default names
         # print([x.shape for x in self.forward(torch.zeros(1, ch, 64, 64))])
 
@@ -737,6 +741,10 @@ class Model(nn.Module):
 
     def info(self, verbose=False, img_size=640):  # print model information
         model_info(self, verbose, img_size)
+
+
+def get_yolo_layers(model):
+    return [i for i, m in enumerate(model.children()) if m.__class__.__name__ == 'RepConv']
 
 
 def parse_model(d, ch):  # model_dict, input_channels(3)
