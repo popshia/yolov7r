@@ -932,3 +932,12 @@ def increment_path(path, exist_ok=True, sep=''):
         i = [int(m.groups()[0]) for m in matches if m]  # indices
         n = max(i) + 1 if i else 2  # increment number
         return f"{path}{sep}{n}"  # update path
+
+def single_xywh2xyxy(x):
+    # Convert nx4 boxes from [x, y, w, h] to [x1, y1, x2, y2] where xy1=top-left, xy2=bottom-right
+    y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
+    y[0] = x[0] - x[2] / 2  # top left x
+    y[1] = x[1] - x[3] / 2  # top left y
+    y[2] = x[0] + x[2] / 2  # bottom right x
+    y[3] = x[1] + x[3] / 2  # bottom right y
+    return y

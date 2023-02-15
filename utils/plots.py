@@ -19,7 +19,7 @@ import yaml
 from PIL import Image, ImageDraw, ImageFont
 from scipy.signal import butter, filtfilt
 
-from utils.general import xywh2xyxy, xyxy2xywh
+from utils.general import xywh2xyxy, xyxy2xywh, single_xywh2xyxy
 from utils.metrics import fitness
 from utils.torch_utils import is_parallel
 
@@ -516,46 +516,38 @@ def plot_skeleton_kpts(im, kpts, steps, orig_shape=None):
         cv2.line(im, pos1, pos2, (int(r), int(g), int(b)), thickness=2)
 
 def plot_targets_and_anchors(tb_writer, model, iters, epoch, imgs, indices, targets, anchors, rads):
-    multi_gpu = is_parallel(model)
-    yolo_layer_id_list = model.module.yolo_layers if multi_gpu else model.yolo_layers
-    anchor_stride_list = [model.module.module_list[yolo_layer_id_list].stride if multi_gpu else model.module_list[yolo_layer_id].stride for yolo_layer_id in yolo_layer_id_list]
-    all_anchors_filename = str(tb_writer.log_dir / "train_batch{}_all_anchors.jpg".format(iters))
+    yolo_layer_list = model.yolo_layers
+    anchor_stride_list = model.stride
+    all_anchors_filename = str(tb_writer.log_dir + "/train_batch{}_all_anchors.jpg".format(iters))
 
     for img_id, img in enumerate(imgs):
         img_with_all_anchors = copy.deepcopy(img)
 
-        print("anchor stride list length: ", len(anchor_stride_list))
-
         for i, anchor_stride in enumerate(anchor_stride_list):
             img_with_one_anchor = copy.deepcopy(img)
-            b, a, gj, gi = indices[i]
-            yolo_layer_anchor_filename = str(tb_writer.log_dir / "train_batch{}_layer{}_anchors.jpg".format(iters, i))
+            b, a, gj, gi = indices[i][:-1]
+            yolo_layer_anchor_filename = str(tb_writer.log_dir + "/train_batch{}_layer{}_anchors.jpg".format(iters, i))
 
-            for tbox_id, (box, anchor_wh) in enumerate(zip(targets[i, 2:6], anchors[i])):
+            for tbox_id, (box, anchor_wh) in enumerate(zip(targets[i], anchors[i])):
                 if b[tbox_id] == img_id:
-                    x, y, w, h = box
-                    w = anchor_wh[0]
-                    h = anchor_wh[1]
-                    x = (x+gi[tbox_id])*anchor_stride
-                    y = (x+gj[tbox_id])*anchor_stride
-                    w *= anchor_stride
-                    h *= anchor_stride
+                    x, y, w, h = box[2], box[3], box[4], box[5]
+                    box = single_xywh2xyxy(np.array([x, y, w, h]).cpu())
+                    box *= 640
 
-                    box = xywh2xyxy(torch.stack((x, y, w, h))[None, :].cpu().numpy().squeeze())
-
-                    if i == 0:   color = (255, 0, 0)
-                    elif i == 1: color = (0, 255, 0)
-                    elif i == 2: color = (0, 0, 255)
+                    # if i == 0:   color = (255, 0, 0)
+                    # elif i == 1: color = (0, 255, 0)
+                    # elif i == 2: color = (0, 0, 255)
 
                     thickness = 2
 
-                    cv2.rectangle(img_with_one_anchor, (box[0], box[1]), (box[2], box[3]), color, thickness)
-                    cv2.rectangle(img_with_all_anchors, (box[0], box[1]), (box[2], box[3]), color, thickness)
+                    cv2.rectangle(np.array(img_with_one_anchor.cpu()), (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (255, 0, 0), thickness)
+                    cv2.rectangle(np.array(img_with_all_anchors.cpu()), (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (255, 0, 0), thickness)
             
-            cv2.imwrite(yolo_layer_anchor_filename, img_with_one_anchor)
+            cv2.imwrite(yolo_layer_anchor_filename, np.array(img_with_one_anchor.cpu()))
 
-    if iters == 0: cv2.imwrite(all_anchors_filename, img_with_all_anchors)
-    tb_writer.add_image("train_batch_all_anchors.jpg", img_with_all_anchors, dataformat='HWC', global_step=epoch)
+    if iters == 0: cv2.imwrite(all_anchors_filename, np.array(img_with_all_anchors.cpu()))
+    tb_writer.add_image("train_batch_all_anchors.jpg", img_with_all_anchors, global_step=epoch)
+    
 
 
 def plot_pred_results(tb_writer, f, preds, conf_thres, img, save_dir, epoch):
