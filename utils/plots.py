@@ -23,6 +23,9 @@ from utils.general import xywh2xyxy, xyxy2xywh, single_xywh2xyxy
 from utils.metrics import fitness
 from utils.torch_utils import is_parallel
 
+import torchvision
+from torchvision.utils import draw_bounding_boxes
+
 # Settings
 matplotlib.rc('font', **{'size': 11})
 matplotlib.use('Agg')  # for writing to files only
@@ -550,21 +553,35 @@ def plot_targets_and_anchors(tb_writer, model, iters, epoch, imgs, indices, targ
     
 
 
-def plot_pred_results(tb_writer, f, preds, conf_thres, img, save_dir, epoch):
-    print(type(img))
-    x = preds[0]
+def plot_pred_results(tb_writer, f, preds, conf_thres, img, save_dir, epoch, before_nms=False):
+    for pred in preds:
+        if pred[5] > conf_thres:
+            box = pred[:4]
+
+            if before_nms:
+                box = single_xywh2xyxy(box)
+
+            if all(i >= 0.0 for i in box):
+                box = box.unsqueeze(0)
+                img = draw_bounding_boxes(img, box, width=1, colors="red")
+
+    tb_writer.add_image(f, img, global_step=epoch)
+
+    '''
+    img = img.cpu().numpy()
+    
     color = (255, 0, 0)
     thickness = 2
     if x is None: return None
-
-    conf = x[:,5]
+    conf = x[5]
     x = x[conf>conf_thres]
-
-    if x.shape[0] > 0:
-        boxes = xywh2xyxy(x[:, :4])
-
+    
+    if len(x_filtered) > 0:
+        boxes = single_xywh2xyxy(x_filtered)
+        
         for box in boxes:
-            cv2.rectangle(img, (box[0], box[1]), (box[2], box[3]), color, thickness)
-
-    cv2.imwrite(str(save_dir)+os.sep+f, img)    
-    tb_writer.add_image(f, img, dataformats='HWC', global_step=epoch)
+            cv2.rectangle(img, (int(box[0]*32), int(box[1]*32)), (int(box[2]*32), int(box[3]*32)), color, thickness)
+    
+    #return img
+    tb_writer.add_image(f, img, global_step=epoch)
+    '''

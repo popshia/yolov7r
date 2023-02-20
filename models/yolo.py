@@ -635,8 +635,8 @@ class Model(nn.Module):
             x = m(x)  # run
 
             # TODO: add plotting after every model run
-            if m.__class__.__name__ == 'RepConv':
-                print(i, m)
+            # if m.__class__.__name__ == 'RepConv':
+            #     print(i, m)
             
             y.append(x if m.i in self.save else None)  # save output
 

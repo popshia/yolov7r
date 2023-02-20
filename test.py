@@ -116,6 +116,7 @@ def test(data,
     rand_batch = random.randint(0, len(dataloader)-1)
 
     for batch_i, (img, targets, paths, shapes) in enumerate(tqdm(dataloader, desc=s)):
+        img_to_save = img
         img = img.to(device, non_blocking=True)
         img = img.half() if half else img.float()  # uint8 to fp16/32
         img /= 255.0  # 0 - 255 to 0.0 - 1.0
@@ -128,9 +129,9 @@ def test(data,
             out, train_out = model(img, augment=augment)  # inference and training outputs
             t0 += time_synchronized() - t
 
-            if batch_i == 0:
+            '''if batch_i == 0:
                 print("len(out):" , np.array(torch.Tensor.cpu(out)).shape)
-                print("len(train_out):", np.array(torch.Tensor.cpu(out)).shape) 
+                print("len(train_out):", np.array(torch.Tensor.cpu(out)).shape) '''
 
             # Compute loss
             if compute_loss:
@@ -145,8 +146,9 @@ def test(data,
             lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if save_hybrid else []  # for autolabelling
 
             # REVIEW: add plotting for outputs befrore NMS
+            tb_imgs = []
             if training and batch_i == rand_batch:
-                plot_pred_results(tb_writer, "test_before_nms.jpg", out, conf_thres, copy.deepcopy(img[0]), save_dir, epoch)
+                tb_imgs.append(plot_pred_results(tb_writer, "test_before_nms.jpg", out[0], conf_thres, copy.deepcopy(img_to_save[0]), save_dir, epoch, before_nms=True))
 
 
             t = time_synchronized()
@@ -154,7 +156,9 @@ def test(data,
             t1 += time_synchronized() - t
 
         if training and batch_i == rand_batch:
-            plot_pred_results(tb_writer, "test_after_nms.jpg", out, conf_thres, copy.deepcopy(img[0]), save_dir, epoch)
+            tb_imgs.append(plot_pred_results(tb_writer, "test_after_nms.jpg", out[0], conf_thres, copy.deepcopy(img_to_save[0]), save_dir, epoch))
+
+        #tb_writer.add_images("validation before and after nms", np.array(tb_imgs), global_step = epoch)
 
         # Statistics per image
         for si, pred in enumerate(out):

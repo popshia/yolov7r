@@ -7,7 +7,7 @@ import time
 from copy import deepcopy
 from pathlib import Path
 from threading import Thread
-
+import shutil
 import numpy as np
 import torch.distributed as dist
 import torch.nn as nn
@@ -586,6 +586,7 @@ if __name__ == '__main__':
     parser.add_argument('--artifact_alias', type=str, default="latest", help='version of dataset artifact to be used')
     parser.add_argument('--freeze', nargs='+', type=int, default=[0], help='Freeze layers: backbone of yolov7=50, first3=0 1 2')
     parser.add_argument('--v5-metric', action='store_true', help='assume maximum recall as 1.0 in AP calculation')
+    parser.add_argument('--overwrite', action='store_true', help='overwrite the project')
     opt = parser.parse_args()
 
     # Set DDP variables
@@ -612,6 +613,15 @@ if __name__ == '__main__':
         assert len(opt.cfg) or len(opt.weights), 'either --cfg or --weights must be specified'
         opt.img_size.extend([opt.img_size[-1]] * (2 - len(opt.img_size)))  # extend to 2 sizes (train, test)
         opt.name = 'evolve' if opt.evolve else opt.name
+
+        # REVIEW: add overwrite argument 
+        if opt.overwrite:
+            overwrite_path = os.path.join( os.getcwd(),'runs', 'train', opt.name )
+            if os.path.exists( overwrite_path ) :
+                print( f'Overwrite Path: {opt.name}')
+                shutil.rmtree( overwrite_path )
+            else : 
+                print( 'NO DIRECTORY TO OVERWRITE !!')
         opt.save_dir = increment_path(Path(opt.project) / opt.name, exist_ok=opt.exist_ok | opt.evolve)  # increment run
 
     # DDP mode
