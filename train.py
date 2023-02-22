@@ -369,6 +369,8 @@ def train(hyp, opt, device, tb_writer=None):
             # Forward
             with amp.autocast(enabled=cuda):
                 pred = model(imgs)  # forward
+                # print( pred[0][0][0])
+                # print( '-----------------------------')
                 if 'loss_ota' not in hyp or hyp['loss_ota'] == 1:
                     # REVIEW: add other parameters for plotting anchors
                     # loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs)  # loss scaled by batch_size

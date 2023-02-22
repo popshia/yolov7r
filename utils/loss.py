@@ -523,8 +523,8 @@ class ComputeLoss:
         bs = tobj.shape[0]  # batch size
 
         # REVIEW: add lrad to loss sum
-        # loss = lbox + lobj + lcls
-        loss = lbox + lobj + lcls + lrad
+        loss = lbox + lobj + lcls
+        # loss = lbox + lobj + lcls + lrad
 
         # REVIEW: add lrad in return
         # return loss * bs, torch.cat((lbox, lobj, lcls, loss)).detach()
@@ -643,11 +643,11 @@ class ComputeLossOTA:
 
         # REVIEW: add target rads and indices
         # bs, as_, gjs, gis, targets, anchors = self.build_targets(p, targets, imgs)
-        bs, as_, gjs, gis, targets, anchors, rads, indices = self.build_targets(p, targets, imgs)
+        bs, as_, gjs, gis, targets, anchors, rads, indices, offsets = self.build_targets(p, targets, imgs)
 
         # TODO: add draw anchors to tensorboard
-        if tb_writer and iters == 0:
-            plot_targets_and_anchors(tb_writer, model, iters, epoch, imgs_to_plot_anchor, indices, targets, anchors, rads)
+        # if tb_writer and iters == 0:
+        #     plot_targets_and_anchors(tb_writer, model, iters, epoch, imgs_to_plot_anchor, indices, targets, anchors, gjs, gis, offsets)
 
         pre_gen_gains = [torch.tensor(pp.shape, device=device)[[3, 2, 3, 2]] for pp in p] 
     
@@ -726,8 +726,8 @@ class ComputeLossOTA:
         bs = tobj.shape[0]  # batch size
 
         # REVIEW: add lrad to loss sum
-        # loss = lbox + lobj + lcls
-        loss = lbox + lobj + lcls + lrad
+        loss = lbox + lobj + lcls
+        # loss = lbox + lobj + lcls + lrad
 
         # REVIEW: add lrad in return
         # return loss * bs, torch.cat((lbox, lobj, lcls, loss)).detach()
@@ -737,7 +737,7 @@ class ComputeLossOTA:
     def build_targets(self, p, targets, imgs):
         # NOTE: get each attributes of the 3 selected positive samples
         #indices, anch = self.find_positive(p, targets)
-        indices, anch = self.find_3_positive(p, targets)
+        indices, anch, offsets = self.find_3_positive(p, targets)
         #indices, anch = self.find_4_positive(p, targets)
         #indices, anch = self.find_5_positive(p, targets)
         #indices, anch = self.find_9_positive(p, targets)
@@ -939,13 +939,15 @@ class ComputeLossOTA:
                 # REVIEW: add matching_rads
                 matching_rads[i] = torch.tensor([], device='cuda:0', dtype=torch.int64)
 
-        return matching_bs, matching_as, matching_gjs, matching_gis, matching_targets, matching_anchs, matching_rads, indices
+        return matching_bs, matching_as, matching_gjs, matching_gis, matching_targets, matching_anchs, matching_rads, indices, offsets
 
     def find_3_positive(self, p, targets):
         # Build targets for compute_loss(), input targets(image,class,x,y,w,h), find 3 positive samples from ground truth
         na, nt = self.na, targets.shape[0]  # number of anchors, targets
 
-        indices, anch = [], []
+        # REVIEW: add offsets_list
+        # indices, anch = [], []
+        indices, anch, offsets_list = [], [], []
         # <INFO> indices: plural form of index
 
         # REVIEW: change gain size from 7 to 8
@@ -1025,7 +1027,10 @@ class ComputeLossOTA:
             indices.append((b, a, gj.clamp_(0, gain[3] - 1), gi.clamp_(0, gain[2] - 1), grad))  # image, anchor, grid indices
             anch.append(anchors[a])  # anchors
 
-        return indices, anch
+            # REVIEW: add offset list
+            offsets_list.append(offsets)
+
+        return indices, anch, offsets_list
     
 
 class ComputeLossBinOTA:

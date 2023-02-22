@@ -518,7 +518,7 @@ def plot_skeleton_kpts(im, kpts, steps, orig_shape=None):
             continue
         cv2.line(im, pos1, pos2, (int(r), int(g), int(b)), thickness=2)
 
-def plot_targets_and_anchors(tb_writer, model, iters, epoch, imgs, indices, targets, anchors, rads):
+def plot_targets_and_anchors(tb_writer, model, iters, epoch, imgs, indices, targets, anchors, gjs, gis, offsets):
     yolo_layer_list = model.yolo_layers
     anchor_stride_list = model.stride
     all_anchors_filename = str(tb_writer.log_dir + "/train_batch{}_all_anchors.jpg".format(iters))
@@ -531,21 +531,25 @@ def plot_targets_and_anchors(tb_writer, model, iters, epoch, imgs, indices, targ
             b, a, gj, gi = indices[i][:-1]
             yolo_layer_anchor_filename = str(tb_writer.log_dir + "/train_batch{}_layer{}_anchors.jpg".format(iters, i))
 
-            for tbox_id, (box, anchor_wh) in enumerate(zip(targets[i], anchors[i])):
+            for tbox_id, (box, anchor_wh, offset) in enumerate(zip(targets[i], anchors[i], offsets[i])):
                 if b[tbox_id] == img_id:
                     box_to_cpu = box.cpu()
-                    x, y, w, h = box_to_cpu[2], box_to_cpu[3], box_to_cpu[4], box_to_cpu[5]
-                    draw_box = single_xywh2xyxy(box_to_cpu[2:6])
-                    draw_box *= 640
+                    x, y, w, h = box_to_cpu[2], box_to_cpu[3], anchor_wh.cpu()[0], anchor_wh.cpu()[1]
+                    x = (x+gis[i][tbox_id]-offset[0])*anchor_stride
+                    y = (y+gjs[i][tbox_id]-offset[1])*anchor_stride
+                    print("--------------------------------------------")
+                    # print("x, y, w, h:", x, y, w, h)
+                    print("x, y, w*anchor_stride, h*anchor_stride:", x, y, w*anchor_stride, h*anchor_stride)
+                    draw_box = single_xywh2xyxy(torch.stack((x, y, w, h)).cpu())
+                    print(draw_box)
 
-                    # if i == 0:   color = (255, 0, 0)
-                    # elif i == 1: color = (0, 255, 0)
-                    # elif i == 2: color = (0, 0, 255)
-                    # thickness = 2
+                    if i == 0:   color = "red"
+                    elif i == 1: color = "blue"
+                    elif i == 2: color = "green"
                     
                     if all(i >= 0.0 for i in draw_box):
                         draw_box = draw_box.unsqueeze(0)
-                        img_with_all_anchors = draw_bounding_boxes(img_with_all_anchors, draw_box, width=1, colors="red")
+                        img_with_all_anchors = draw_bounding_boxes(img_with_all_anchors, draw_box, width=1, colors=color)
 
                     # cv2.rectangle(np.array(img_with_one_anchor.cpu()), (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (255, 0, 0), thickness)
                     # cv2.rectangle(np.array(img_with_all_anchors.cpu()), (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (255, 0, 0), thickness)

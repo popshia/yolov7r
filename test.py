@@ -150,7 +150,7 @@ def test(data,
             # REVIEW: add plotting for outputs befrore NMS
             tb_imgs = []
             if training and batch_i == rand_batch:
-                tb_imgs.append(plot_pred_results(tb_writer, "test_before_nms.jpg", out[0], conf_thres, copy.deepcopy(img_to_save[0]), save_dir, epoch, before_nms=True))
+                tb_imgs.append(plot_pred_results(tb_writer, "test_before_nms.jpg", out[0], 0.3, copy.deepcopy(img_to_save[0]), save_dir, epoch, before_nms=True))
 
 
             t = time_synchronized()
@@ -158,7 +158,7 @@ def test(data,
             t1 += time_synchronized() - t
 
         if training and batch_i == rand_batch:
-            tb_imgs.append(plot_pred_results(tb_writer, "test_after_nms.jpg", out[0], conf_thres, copy.deepcopy(img_to_save[0]), save_dir, epoch))
+            tb_imgs.append(plot_pred_results(tb_writer, "test_after_nms.jpg", out[0], 0.3, copy.deepcopy(img_to_save[0]), save_dir, epoch, before_nms=False))
 
         #tb_writer.add_images("validation before and after nms", np.array(tb_imgs), global_step = epoch)
 
