@@ -518,7 +518,7 @@ class ComputeLoss:
         lcls *= self.hyp['cls']
 
         # TODO: add lrad multiply with its own weight, need to add hyp option in hyp file
-        # lrad *= self.hyp['rad']
+        lrad *= self.hyp['rad']
 
         bs = tobj.shape[0]  # batch size
 
@@ -634,7 +634,7 @@ class ComputeLossOTA:
 
     # REVIEW: add other needed parameters for ploting anchors
     # def __call__(self, p, targets, imgs):  # predictions, targets, model   
-    def __call__(self, p, targets, imgs, tb_writer, iters, model, epoch):  # predictions, targets, model   
+    def __call__(self, p, targets, imgs, tb_writer, iters, model, epoch, imgs_to_plot_anchor):  # predictions, targets, model   
         device = targets.device
 
         # REVIEW: add radian loss "lrad"
@@ -646,8 +646,8 @@ class ComputeLossOTA:
         bs, as_, gjs, gis, targets, anchors, rads, indices = self.build_targets(p, targets, imgs)
 
         # TODO: add draw anchors to tensorboard
-        # if tb_writer and iters == 0:
-        #     plot_targets_and_anchors(tb_writer, model, iters, epoch, imgs, indices, targets, anchors, rads)
+        if tb_writer and iters == 0:
+            plot_targets_and_anchors(tb_writer, model, iters, epoch, imgs_to_plot_anchor, indices, targets, anchors, rads)
 
         pre_gen_gains = [torch.tensor(pp.shape, device=device)[[3, 2, 3, 2]] for pp in p] 
     

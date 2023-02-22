@@ -129,9 +129,11 @@ def test(data,
             out, train_out = model(img, augment=augment)  # inference and training outputs
             t0 += time_synchronized() - t
 
-            '''if batch_i == 0:
+            '''
+            if batch_i == 0:
                 print("len(out):" , np.array(torch.Tensor.cpu(out)).shape)
-                print("len(train_out):", np.array(torch.Tensor.cpu(out)).shape) '''
+                print("len(train_out):", np.array(torch.Tensor.cpu(out)).shape)
+            '''
 
             # Compute loss
             if compute_loss:

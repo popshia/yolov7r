@@ -343,6 +343,8 @@ def train(hyp, opt, device, tb_writer=None):
         optimizer.zero_grad()
         for i, (imgs, targets, paths, _) in pbar:  # batch -------------------------------------------------------------
             ni = i + nb * epoch  # number integrated batches (since train start)
+            # REVIEW: add img_to_plot_anchor to plot
+            imgs_to_plot_anchor = imgs
             imgs = imgs.to(device, non_blocking=True).float() / 255.0  # uint8 to float32, 0-255 to 0.0-1.0
 
             # Warmup
@@ -370,7 +372,7 @@ def train(hyp, opt, device, tb_writer=None):
                 if 'loss_ota' not in hyp or hyp['loss_ota'] == 1:
                     # REVIEW: add other parameters for plotting anchors
                     # loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs)  # loss scaled by batch_size
-                    loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs, tb_writer, i, model, epoch)  # loss scaled by batch_size
+                    loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs, tb_writer, i, model, epoch, imgs_to_plot_anchor)  # loss scaled by batch_size
                 else:
                     # REVIEW: add other parameters for plotting anchors
                     # loss, loss_items = compute_loss(pred, targets.to(device), imgs)  # loss scaled by batch_size

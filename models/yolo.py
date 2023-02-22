@@ -139,7 +139,8 @@ class IDetect(nn.Module):
                 y[..., 2:4] = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
 
                 z.append(y.view(bs, -1, self.no))
-
+            
+            # print(i, x[0])
         return x if self.training else (torch.cat(z, 1), x)
     
     def fuseforward(self, x):
@@ -636,7 +637,7 @@ class Model(nn.Module):
 
             # TODO: add plotting after every model run
             # if m.__class__.__name__ == 'RepConv':
-            #     print(i, m)
+            #      print(x.size())
             
             y.append(x if m.i in self.save else None)  # save output
 

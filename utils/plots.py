@@ -533,22 +533,26 @@ def plot_targets_and_anchors(tb_writer, model, iters, epoch, imgs, indices, targ
 
             for tbox_id, (box, anchor_wh) in enumerate(zip(targets[i], anchors[i])):
                 if b[tbox_id] == img_id:
-                    x, y, w, h = box[2], box[3], box[4], box[5]
-                    box = single_xywh2xyxy(np.array([x, y, w, h]).cpu())
-                    box *= 640
+                    box_to_cpu = box.cpu()
+                    x, y, w, h = box_to_cpu[2], box_to_cpu[3], box_to_cpu[4], box_to_cpu[5]
+                    draw_box = single_xywh2xyxy(box_to_cpu[2:6])
+                    draw_box *= 640
 
                     # if i == 0:   color = (255, 0, 0)
                     # elif i == 1: color = (0, 255, 0)
                     # elif i == 2: color = (0, 0, 255)
+                    # thickness = 2
+                    
+                    if all(i >= 0.0 for i in draw_box):
+                        draw_box = draw_box.unsqueeze(0)
+                        img_with_all_anchors = draw_bounding_boxes(img_with_all_anchors, draw_box, width=1, colors="red")
 
-                    thickness = 2
-
-                    cv2.rectangle(np.array(img_with_one_anchor.cpu()), (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (255, 0, 0), thickness)
-                    cv2.rectangle(np.array(img_with_all_anchors.cpu()), (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (255, 0, 0), thickness)
+                    # cv2.rectangle(np.array(img_with_one_anchor.cpu()), (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (255, 0, 0), thickness)
+                    # cv2.rectangle(np.array(img_with_all_anchors.cpu()), (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (255, 0, 0), thickness)
             
-            cv2.imwrite(yolo_layer_anchor_filename, np.array(img_with_one_anchor.cpu()))
+            # cv2.imwrite(yolo_layer_anchor_filename, np.array(img_with_one_anchor.cpu()))
 
-    if iters == 0: cv2.imwrite(all_anchors_filename, np.array(img_with_all_anchors.cpu()))
+    # if iters == 0: cv2.imwrite(all_anchors_filename, np.array(img_with_all_anchors.cpu()))
     tb_writer.add_image("train_batch_all_anchors.jpg", img_with_all_anchors, global_step=epoch)
     
 
