@@ -1,0 +1,61 @@
+
+\chapter{~~~ 論文格式}
+\label{ch:ch1}
+
+\section{~自動為圖片、表格增加序號 }
+\label{se:se1}
+\subsection{標號}
+插入圖片之後，在要加上編號的地方，點選「參考資料」/「標號」/「插入標號」。第一次新增標號時，要點選「新增標籤」，輸入「圖」或「表」，之後只要在標籤裡選擇「圖」或「表」即可，如果有設定好大綱編號，可以在編號方式中將「包含章節編號」打勾，在這個範本第幾章是使用標題1，所以章節起始樣式選標題1，按確定，插入標號後，按一下tab (不要使用空白，以免影響到圖目錄的對齊)，接著在後面打上想要的說明即可。
+\begin{figure}
+ \centering
+ \includegraphics[width=.8\textwidth]{figure/figure1.png} %1.png是图片文件的相对路径
+ \caption{插入標號的路徑} %標題
+ \label{img} 
+\end{figure}
+\begin{figure}
+ \centering %置中
+ \includegraphics[width=.8\textwidth]{figure/figure2.png}
+\caption{標號設定}
+\end{figure}
+\clearpage
+\begin{table}[]
+\caption{測試表格}
+\begin{tabular}{|c|c|c|}
+\hline
+\rowcolor[HTML]{D9D9D9} 
+\begin{tabular}[c]{@{}c@{}}各院名稱\\ \\ College of Name\end{tabular}                                           & \begin{tabular}[c]{@{}c@{}}精裝論文顏色\\ \\ Color(tooled in gold font\end{tabular}                           & 顏色參考 \\ \hline
+\begin{tabular}[c]{@{}c@{}}理學院\\ \\ College of Science\end{tabular}                                         & {\color[HTML]{000000} \begin{tabular}[c]{@{}c@{}}{\color{blue}藍色} (燙金字體)\\ \\ {\color{cyan}Blue}(tooled in gold font)\end{tabular}} & 1\#  \\ \hline
+\begin{tabular}[c]{@{}c@{}}工學院\\ \\ College of Engineering\end{tabular}                                     & \begin{tabular}[c]{@{}c@{}}黑色(燙金字體)\\ \\ Black(tooled in gold font)\end{tabular}                        &      \\ \hline
+\begin{tabular}[c]{@{}c@{}}商學院\\ \\ College of Business\end{tabular}                                        & \begin{tabular}[c]{@{}c@{}}{\color{green}綠色}(燙金字體)\\ \\ {\color{green}Green} (tooled in gold font)\end{tabular}                        & \#   \\ \hline
+\begin{tabular}[c]{@{}c@{}}設計學院\\ \\ College of Design\end{tabular}                                         & \begin{tabular}[c]{@{}c@{}}{\color{brown}咖啡色}(燙金字體)\\ \\ {\color{brown}Brown}(tooled in gold font)\end{tabular}                       & \#   \\ \hline
+\begin{tabular}[c]{@{}c@{}}人育學院\\ \\ College of Humanities and Education\end{tabular}                       & \begin{tabular}[c]{@{}c@{}}{\color{red}紅色}(燙金字體)\\ \\ {\color{red}Red}(tooled in gold font)\end{tabular}                          & \#   \\ \hline
+\begin{tabular}[c]{@{}c@{}}電資學院\\ \\ College of Electrical Engineering and \\ Computer Science\end{tabular} & \begin{tabular}[c]{@{}c@{}}{\color{darkgray}淺銀灰藍色}(燙金字體)\\ \\ {\color{darkgray}Silver gray blue}(tooled in gold font)\end{tabular}          & \#   \\ \hline
+\begin{tabular}[c]{@{}c@{}}法學院\\ \\ School of Law\end{tabular}                                              & \begin{tabular}[c]{@{}c@{}}{\color{red}暗紅色}(燙金字體)\\ \\ {\color{red}dark red}(tooled in gold font)\end{tabular}                    & \#   \\ \hline
+\end{tabular}
+
+\end{table}
+\clearpage
+\subsection{標題及內文格式}
+中文字型若為標楷體、西文字型則為 Times New Roman
+\begin{table}[]
+\caption{格式說明}
+\begin{tabular}{|l|l|l|}
+\hline
+類別  & 字體大小 & 編號方式 \\ \hline
+內文  & 12   & 無    \\ \hline
+標題一 & 18   & 第*章  \\ \hline
+標題二 & 16   & 第*節  \\ \hline
+標題三 & 14   & *、   \\ \hline
+圖表  & 9    & 標號   \\ \hline
+\end{tabular}
+\end{table}
+\clearpage
+\section{~新增圖、表目錄 }
+\label{se:se2}
+　在「參考資料」之「標號」中，點選插入「圖表目錄」，然後選擇「標題標籤」即可。
+
+\begin{figure}[b]
+ \centering %置中
+ \includegraphics[width=.8\textwidth]{figure/figure3.png}
+\caption{插入圖表目錄}
+\end{figure}

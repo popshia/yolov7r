@@ -1,0 +1,83 @@
+\documentclass[a4paper, 12pt, oneside, openright]{report}
+\usepackage{CJKutf8}
+%圖
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{graphicx, subfig}
+%圖
+\usepackage[table,xcdraw]{xcolor}%表格
+\usepackage{float}
+\renewcommand{\baselinestretch}{1.5}
+ \usepackage{indentfirst}
+\usepackage{color}
+%\hypersetup{
+%    colorlinks=true,       % false: boxed links; true: colored links
+%    linkcolor=blue,          % color of internal links
+%    citecolor=blue,        % color of links to bibliography
+%    filecolor=blue,      % color of file links
+%    urlcolor=blue           % color of external links
+%}
+
+%------------------------------------
+% Thesis boundary Setting
+%-------------------------------------
+
+
+\textwidth      = 137.0mm
+\textheight     = 224.0mm
+\topmargin      =  -3.0mm
+\headheight     =   0.0mm
+\headsep        =  10.0mm
+\footskip       =   8.0mm
+\oddsidemargin  =  10.6mm
+\evensidemargin =  10.6mm
+\hoffset = -0.2cm
+%\overfullrule=5pt%%
+
+\pagenumbering{roman}% \thispagestyle{myheadings}
+\setcounter{page}{1}
+
+
+%\thispagestyle{empty}
+
+\begin{document}
+\begin{CJK*}{UTF8}{bsmi}
+\title{\textbf{中原大學} \\
+        \textbf{\document學系} \\ 
+         \textbf{碩/博士學位論文} \\ 
+        \textbf{} \\
+        \textbf{} \\
+        
+        \textbf{我是一份範本} \\ 
+        \textbf{—以中原大學為例} \\ 
+
+        \bf{I am a format sample.} }
+
+
+\author{ \\  \\ 
+{\it \Large 指導教授：○○○} \\ 
+{\it \Large 研 究 生：○○○} \\ \\ \ }
+
+{\date{中華民國 ○○○ 年 ○ 月}}
+\maketitle
+\frontmatter
+
+\input{example/0_abstract/abstract.tex}
+\input{example/0_abstract_EN/abstract_EN.tex}
+\input{example/0_acknowledgments/acknowledgments.tex}
+\tableofcontents
+\listoffigures
+\listoftables
+%正文
+\mainmatter
+
+
+\input{example/chapter1/chapter1.tex}
+\input{example/chapter2WithPictureTable/chapter2.tex}
+
+\input{example/reference/reference.tex}
+\input{example/appendix/appendix.tex}
+
+
+\end{CJK*}
+\end{document}

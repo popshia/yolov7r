@@ -1,0 +1,14 @@
+\contentsline {chapter}{\begin {center}摘要\end {center}}{i}{}%
+\contentsline {chapter}{Abstract}{ii}{}%
+\contentsline {chapter}{\begin {center}致謝\end {center}}{iv}{}%
+\contentsline {chapter}{\numberline {1}\nobreakspace {}\nobreakspace {}\nobreakspace {} 序論}{1}{}%
+\contentsline {section}{\numberline {1.1}\nobreakspace {}全人教育的由來 }{1}{}%
+\contentsline {section}{\numberline {1.2}\nobreakspace {}理念篇}{1}{}%
+\contentsline {section}{\numberline {1.3}\nobreakspace {}內涵篇}{2}{}%
+\contentsline {chapter}{\numberline {2}\nobreakspace {}\nobreakspace {}\nobreakspace {} 論文格式}{4}{}%
+\contentsline {section}{\numberline {2.1}\nobreakspace {}自動為圖片、表格增加序號 }{4}{}%
+\contentsline {subsection}{\numberline {2.1.1}標號}{4}{}%
+\contentsline {subsection}{\numberline {2.1.2}標題及內文格式}{7}{}%
+\contentsline {section}{\numberline {2.2}\nobreakspace {}新增圖、表目錄 }{8}{}%
+\contentsline {chapter}{\numberline {3}\nobreakspace {}\nobreakspace {}\nobreakspace {} 參考文獻}{10}{}%
+\contentsline {chapter}{\numberline {4}\nobreakspace {}\nobreakspace {}\nobreakspace {} 附錄}{11}{}%
