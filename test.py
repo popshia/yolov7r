@@ -150,7 +150,7 @@ def test(data,
             # REVIEW: add plotting for outputs befrore NMS
             tb_imgs = []
             if training and batch_i == rand_batch:
-                tb_imgs.append(plot_pred_results(tb_writer, "test_before_nms.jpg", out[0], 0.3, copy.deepcopy(img_to_save[0]), save_dir, epoch, before_nms=True))
+                tb_imgs.append(plot_pred_results(tb_writer, "test/before_nms", out[0], 0.3, copy.deepcopy(img_to_save[0]), save_dir, epoch, before_nms=True))
 
 
             t = time_synchronized()
@@ -158,7 +158,7 @@ def test(data,
             t1 += time_synchronized() - t
 
         if training and batch_i == rand_batch:
-            tb_imgs.append(plot_pred_results(tb_writer, "test_after_nms.jpg", out[0], 0.3, copy.deepcopy(img_to_save[0]), save_dir, epoch, before_nms=False))
+            tb_imgs.append(plot_pred_results(tb_writer, "test/after_nms", out[0], 0.3, copy.deepcopy(img_to_save[0]), save_dir, epoch, before_nms=False))
 
         #tb_writer.add_images("validation before and after nms", np.array(tb_imgs), global_step = epoch)
 
@@ -251,8 +251,8 @@ def test(data,
             # Append statistics (correct, conf, pcls, tcls)
             # stats.append((correct.cpu(), pred[:, 4].cpu(), pred[:, 5].cpu(), tcls))
 
-            # REVIEW: change cls index from 5 to 6
-            stats.append((correct.cpu(), pred[:, 4].cpu(), pred[:, 6].cpu(), tcls))
+            # REVIEW: change conf index form 4 to 5, cls index from 5 to 6
+            stats.append((correct.cpu(), pred[:, 5].cpu(), pred[:, 6].cpu(), tcls))
 
         # Plot images
         if plots and batch_i < 3:
@@ -271,7 +271,6 @@ def test(data,
     else:
         nt = torch.zeros(1)
 
-    # TODO: p, r has no value
     # Print results
     pf = '%20s' + '%12i' * 2 + '%12.3g' * 4  # print format
     print(pf % ('all', seen, nt.sum(), mp, mr, map50, map))

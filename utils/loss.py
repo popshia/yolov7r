@@ -523,8 +523,8 @@ class ComputeLoss:
         bs = tobj.shape[0]  # batch size
 
         # REVIEW: add lrad to loss sum
-        loss = lbox + lobj + lcls
-        # loss = lbox + lobj + lcls + lrad
+        # loss = lbox + lobj + lcls
+        loss = lbox + lobj + lcls + lrad
 
         # REVIEW: add lrad in return
         # return loss * bs, torch.cat((lbox, lobj, lcls, loss)).detach()
@@ -721,13 +721,13 @@ class ComputeLossOTA:
         lcls *= self.hyp['cls']
 
         # TODO: add lrad multiply with its own weight, need to add hyp option in hyp file
-        # lrad *= self.hyp['rad']
+        lrad *= self.hyp['rad']
 
         bs = tobj.shape[0]  # batch size
 
         # REVIEW: add lrad to loss sum
-        loss = lbox + lobj + lcls
-        # loss = lbox + lobj + lcls + lrad
+        # loss = lbox + lobj + lcls
+        loss = lbox + lobj + lcls + lrad
 
         # REVIEW: add lrad in return
         # return loss * bs, torch.cat((lbox, lobj, lcls, loss)).detach()
