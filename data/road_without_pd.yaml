@@ -1,0 +1,8 @@
+train: /home/lab602.our_container/.pipeline/11077006/yolov7r/road_data_without_pd/train.txt
+val: /home/lab602.our_container/.pipeline/11077006/yolov7r/road_data_without_pd/val.txt
+
+# number of classes
+nc: 7
+
+# class names
+names: ['bike', 'scooter', 'car', 'truck', 'cargo', 'combined_head', 'combined_tail']

@@ -627,10 +627,10 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                 if nL:
                     labels[:, 1] = 1 - labels[:, 1]
                     for label in labels:
-                        if 0 < label[5] < 0.25 or 0.5 < label[5] < 0.75:
-                            label[5] = label[5] + 0.25
-                        elif 0.25 < label[5] < 0.5 or 0.75 < label[5] < 1:
-                            label[5] = label[5] - 0.25
+                        if 0 < label[5] < 0.5:
+                            label[5] = 0.25 + (0.25-label[5])
+                        elif 0.5 < label[5] < 1:
+                            label[5] = 0.75 + (0.75-label[5])
 
         # REVIEW: change torch.zeros size from (nL, 6) to (nL, 7)
         # labels_out = torch.zeros((nL, 6))
@@ -840,7 +840,9 @@ def load_mosaic9(self, index):
     c = np.array([xc, yc])  # centers
     segments9 = [x - c for x in segments9]
 
-    for x in (labels9[:, 1:], *segments9):
+    # REVIEW: change label index
+    # for x in (labels9[:, 1:], *segments9):
+    for x in (labels9[:, 1:5], *segments9):
         np.clip(x, 0, 2 * s, out=x)  # clip when using random_perspective()
     # img9, labels9 = replicate(img9, labels9)  # replicate
 
