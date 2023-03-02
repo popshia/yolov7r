@@ -148,9 +148,8 @@ def test(data,
             lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if save_hybrid else []  # for autolabelling
 
             # REVIEW: add plotting for outputs befrore NMS
-            tb_imgs = []
             if training and batch_i == rand_batch:
-                tb_imgs.append(plot_pred_results(tb_writer, "test/before_nms", out[0], 0.3, copy.deepcopy(img_to_save[0]), save_dir, epoch, before_nms=True))
+                plot_pred_results(tb_writer, "test/before_nms", out[0], 0.3, copy.deepcopy(img_to_save[0]), epoch, before_nms=True, wandb=wandb_logger)
 
 
             t = time_synchronized()
@@ -158,7 +157,7 @@ def test(data,
             t1 += time_synchronized() - t
 
         if training and batch_i == rand_batch:
-            tb_imgs.append(plot_pred_results(tb_writer, "test/after_nms", out[0], 0.3, copy.deepcopy(img_to_save[0]), save_dir, epoch, before_nms=False))
+            plot_pred_results(tb_writer, "test/after_nms", out[0], 0.3, copy.deepcopy(img_to_save[0]), epoch, before_nms=False, wandb=wandb_logger)
 
         #tb_writer.add_images("validation before and after nms", np.array(tb_imgs), global_step = epoch)
 

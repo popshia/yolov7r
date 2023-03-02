@@ -561,7 +561,7 @@ def plot_targets_and_anchors(tb_writer, model, iters, epoch, imgs, indices, targ
     
 
 
-def plot_pred_results(tb_writer, f, preds, conf_thres, img, save_dir, epoch, before_nms=False):
+def plot_pred_results(tb_writer, f, preds, conf_thres, img, epoch, before_nms=False, wandb=None):
     for pred in preds:
         if pred[5] > conf_thres:
             box = pred[:4]
@@ -575,21 +575,9 @@ def plot_pred_results(tb_writer, f, preds, conf_thres, img, save_dir, epoch, bef
 
     tb_writer.add_image(f, img, global_step=epoch)
 
-    '''
-    img = img.cpu().numpy()
-    
-    color = (255, 0, 0)
-    thickness = 2
-    if x is None: return None
-    conf = x[5]
-    x = x[conf>conf_thres]
-    
-    if len(x_filtered) > 0:
-        boxes = single_xywh2xyxy(x_filtered)
-        
-        for box in boxes:
-            cv2.rectangle(img, (int(box[0]*32), int(box[1]*32)), (int(box[2]*32), int(box[3]*32)), color, thickness)
-    
-    #return img
-    tb_writer.add_image(f, img, global_step=epoch)
-    '''
+    # img = img.to(torch.float)
+    #
+    # if before_nms:
+    #     wandb.log({"test/before_nms": wandb.wandb.Image(img, caption="before_nms")})
+    # else:
+    #     wandb.log({"test/after_nms": wandb.wandb.Image(img, caption="after_nms")})
