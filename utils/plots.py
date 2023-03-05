@@ -188,7 +188,7 @@ def plot_images(images, targets, paths=None, fname='images.jpg', names=None, max
 
                     # REVIEW: add radian value in label
                     # print(Path(paths[i]).name[:40], image_targets[j])
-                    label += " " + str(image_targets[j, 6])
+                    label += " " + str(image_targets[j, 6])[:4]
 
                     plot_one_box(box, mosaic, label=label, color=color, line_thickness=tl)
 
@@ -575,7 +575,7 @@ def plot_pred_results(tb_writer, f, preds, conf_thres, img, epoch, before_nms=Fa
 
     tb_writer.add_image(f, img, global_step=epoch)
 
-    # img = img.to(torch.float)
+    # img = torchvision.transforms.ToPILImage()(img.cpu())
     #
     # if before_nms:
     #     wandb.log({"test/before_nms": wandb.wandb.Image(img, caption="before_nms")})

@@ -51,6 +51,7 @@ HRSC2016_blabels/
 HRSC2016_rlabels/
 road_data/
 road_data_without_pd/
+DOTA_YOLO/
 
 coco2017labels-segments.zip
 test2017.zip
