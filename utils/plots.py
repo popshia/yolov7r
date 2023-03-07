@@ -108,7 +108,7 @@ def plot_wh_methods():  # from utils.plots import *; plot_wh_methods()
 
 
 def output_to_target(output):
-    # Convert model output to target format [batch_id, class_id, x, y, w, h, conf]
+    # Convert model output to target format [batch_id, class_id, x, y, w, h, rad, conf]
     targets = []
     for i, o in enumerate(output):
         # REVIEW: add radian value to targets for test file plotting
