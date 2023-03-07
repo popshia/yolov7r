@@ -1,5 +1,5 @@
-train: /home/lab602.our_container/.pipeline/11077006/yolov7r/HRSC2016_blabels/train.txt
-val: /home/lab602.our_container/.pipeline/11077006/yolov7r/HRSC2016_blabels/val.txt
+train: /home/lab602.our_container/.pipeline/11077006/yolov7r/data/HRSC2016_HBB/train.txt
+val: /home/lab602.our_container/.pipeline/11077006/yolov7r/data/HRSC2016_HBB/val.txt
 
 # number of classes
 nc: 1

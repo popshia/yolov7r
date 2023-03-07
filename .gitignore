@@ -40,18 +40,15 @@ results*.csv
 # Draw box -------------------------------------------------------------------------------------------------------------
 draw-YOLO-box/
 
-# jacklin yolo ---------------------------------------------------------------------------------------------------------
-jacklin_yolo/
-
 # Datasets -------------------------------------------------------------------------------------------------------------
 coco/
 coco128/
 VOC/
-HRSC2016_blabels/
-HRSC2016_rlabels/
-road_data/
-road_data_without_pd/
-DOTA_YOLO/
+data/DOTA
+data/HRSC2016_HBB/
+data/HRSC2016_OBB/
+data/road_data/
+data/road_data_without_pd/
 
 coco2017labels-segments.zip
 test2017.zip
