@@ -1,0 +1,6 @@
+[submodule "yolov5_obb"]
+	path = yolov5_obb
+	url = https://github.com/hukaixuan19970627/yolov5_obb
+[submodule "DOTA_devkit_YOLO"]
+	path = DOTA_devkit_YOLO
+	url = https://github.com/hukaixuan19970627/DOTA_devkit_YOLO
