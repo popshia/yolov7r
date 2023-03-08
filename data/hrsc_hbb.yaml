@@ -1,0 +1,8 @@
+train: /home/lab602.our_container/.pipeline/11077006/yolov7r/data/HRSC2016/hbb/train.txt
+val: /home/lab602.our_container/.pipeline/11077006/yolov7r/data/HRSC2016/hbb/val.txt
+
+# number of classes
+nc: 1
+
+# class names
+names: [ 'ship' ]
