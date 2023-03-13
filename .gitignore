@@ -44,10 +44,14 @@ draw-YOLO-box/
 coco/
 coco128/
 VOC/
-data/DOTA_1.0
-data/HRSC2016/
-data/HRSC2016/
-data/road/
+data/**/*.jpg
+data/**/*.png
+data/**/*.bmp
+data/**/*.txt
+# data/DOTA_1.0
+# data/HRSC2016/
+# data/HRSC2016/
+# data/road/
 
 coco2017labels-segments.zip
 test2017.zip
