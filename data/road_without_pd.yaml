@@ -1,5 +1,5 @@
-train: /home/lab602.our_container/.pipeline/11077006/yolov7r/data/road/without_pd/train.txt
-val: /home/lab602.our_container/.pipeline/11077006/yolov7r/data/road/without_pd/val.txt
+train: /home/lab602.11077009/.pipeline/11077009/yolov7r/data/road/without_pd/train.txt
+val: /home/lab602.11077009/.pipeline/11077009/yolov7r/data/road/without_pd/val.txt
 
 # number of classes
 nc: 7
