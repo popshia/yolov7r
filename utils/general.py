@@ -938,10 +938,32 @@ def increment_path(path, exist_ok=True, sep=''):
         return f"{path}{sep}{n}"  # update path
 
 def single_xywh2xyxy(x):
-    # Convert nx4 boxes from [x, y, w, h] to [x1, y1, x2, y2] where xy1=top-left, xy2=bottom-right
+    # Convert box from [x, y, w, h] to [x1, y1, x2, y2] where xy1=top-left, xy2=bottom-right
     y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
     y[0] = x[0] - x[2] / 2  # top left x
     y[1] = x[1] - x[3] / 2  # top left y
     y[2] = x[0] + x[2] / 2  # bottom right x
     y[3] = x[1] + x[3] / 2  # bottom right y
     return y
+
+def xyxy2poly(x, rad):
+    # Convert box from [x1, y1, x2, y2, rad] to [x1, y1, x2, y2, ..., x4, y4]
+    
+    # get center, w, h, rad
+    center = torch.Tensor([(x[0]+x[2])/2,(x[1]+x[3])/2]) 
+    w = torch.Tensor([x[2]-x[0]])
+    h = torch.Tensor([x[3]-x[1]])
+    rad = torch.Tensor([rad*math.pi*2+math.pi/2])
+
+    # calculate cos and sin
+    cos, sin = torch.cos(rad), torch.sin(rad)
+    vector1 = torch.Tensor([(w/2 * cos, -w/2 * sin)])
+    vector2 = torch.Tensor([(-h/2 * sin, -h/2 * cos)])
+    point1 = center + vector1 + vector2
+    point2 = center + vector1 - vector2
+    point3 = center - vector1 - vector2
+    point4 = center - vector1 + vector2
+    return np.array([(point1[0,0], point1[0,1]),
+                    (point2[0,0], point2[0,1]),
+                    (point3[0,0], point3[0,1]),
+                    (point4[0,0], point4[0,1])]).astype(int)

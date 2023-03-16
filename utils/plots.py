@@ -19,7 +19,7 @@ import yaml
 from PIL import Image, ImageDraw, ImageFont
 from scipy.signal import butter, filtfilt
 
-from utils.general import xywh2xyxy, xyxy2xywh, single_xywh2xyxy
+from utils.general import xywh2xyxy, xyxy2xywh, single_xywh2xyxy, xyxy2poly
 from utils.metrics import fitness
 from utils.torch_utils import is_parallel
 
@@ -59,12 +59,20 @@ def butter_lowpass_filtfilt(data, cutoff=1500, fs=50000, order=5):
     return filtfilt(b, a, data)  # forward-backward filter
 
 
-def plot_one_box(x, img, color=None, label=None, line_thickness=3):
+def plot_one_box(x, img, rad, color=None, label=None, line_thickness=3):
     # Plots one bounding box on image img
     tl = line_thickness or round(0.002 * (img.shape[0] + img.shape[1]) / 2) + 1  # line/font thickness
     color = color or [random.randint(0, 255) for _ in range(3)]
+    # NOTE: x[0:4]: top-left and bottom-right corners of the box
     c1, c2 = (int(x[0]), int(x[1])), (int(x[2]), int(x[3]))
-    cv2.rectangle(img, c1, c2, color, thickness=tl, lineType=cv2.LINE_AA)
+
+    # REVIEW: change x1, y1, x2, y2 to x1, y1, x2, y2..., x4, y4
+    poly = xyxy2poly(x, rad)
+
+    # REVIEW: change draw rectangle to contours
+    cv2.drawContours(image=img, contours=[poly], contourIdx=-1, color=color, thickness=tl)
+    # cv2.rectangle(img, c1, c2, color, thickness=tl, lineType=cv2.LINE_AA)
+
     if label:
         tf = max(tl - 1, 1)  # font thickness
         t_size = cv2.getTextSize(label, 0, fontScale=tl / 3, thickness=tf)[0]
@@ -171,6 +179,9 @@ def plot_images(images, targets, paths=None, fname='images.jpg', names=None, max
             # conf = None if labels else image_targets[:, 6]  # check for confidence presence (label vs pred)
             conf = None if labels else image_targets[:, 7]  # check for confidence presence (label vs pred)
 
+            # REVIEW: add radian for drawing
+            rad = image_targets[:, 6]
+
             if boxes.shape[1]:
                 if boxes.max() <= 1.01:  # if normalized with tolerance 0.01
                     boxes[[0, 2]] *= w  # scale to pixels
@@ -190,7 +201,7 @@ def plot_images(images, targets, paths=None, fname='images.jpg', names=None, max
                     # print(Path(paths[i]).name[:40], image_targets[j])
                     label += " " + str(image_targets[j, 6])[:4]
 
-                    plot_one_box(box, mosaic, label=label, color=color, line_thickness=tl)
+                    plot_one_box(box, mosaic, label=label, color=color, line_thickness=tl, rad=rad[j])
 
         # Draw image filename labels
         if paths:
@@ -518,6 +529,7 @@ def plot_skeleton_kpts(im, kpts, steps, orig_shape=None):
             continue
         cv2.line(im, pos1, pos2, (int(r), int(g), int(b)), thickness=2)
 
+# REVIEW: function for plotting targets and anchor in training phase (hbb)
 def plot_targets_and_anchors(tb_writer, model, iters, epoch, imgs, indices, targets, anchors, gjs, gis, offsets):
     yolo_layer_list = model.yolo_layers
     anchor_stride_list = model.stride
@@ -560,24 +572,22 @@ def plot_targets_and_anchors(tb_writer, model, iters, epoch, imgs, indices, targ
     tb_writer.add_image("train_batch_all_anchors.jpg", img_with_all_anchors, global_step=epoch)
     
 
-
+# REVIEW: plotting for pred results in test phase (hbb)
 def plot_pred_results(tb_writer, f, preds, conf_thres, img, epoch, before_nms=False, wandb=None):
     for pred in preds:
         if pred[5] > conf_thres:
             box = pred[:4]
+            rad = pred[4]
 
             if before_nms:
                 box = single_xywh2xyxy(box)
+                poly = xyxy2poly(box, rad)
 
             if all(i >= 0.0 for i in box):
-                box = box.unsqueeze(0)
-                img = draw_bounding_boxes(img, box, width=1, colors="red")
+                # box = box.unsqueeze(0)
+                print(box)
+                box = xyxy2poly(box, rad)
+                cv2.drawContours(image=img, contours=[poly], contourIdx=-1, color="red", thickness=3)
+                # img = draw_bounding_boxes(img, box, width=1, colors="red")
 
     tb_writer.add_image(f, img, global_step=epoch)
-
-    # img = torchvision.transforms.ToPILImage()(img.cpu())
-    #
-    # if before_nms:
-    #     wandb.log({"test/before_nms": wandb.wandb.Image(img, caption="before_nms")})
-    # else:
-    #     wandb.log({"test/after_nms": wandb.wandb.Image(img, caption="after_nms")})

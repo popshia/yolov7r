@@ -591,6 +591,7 @@ if __name__ == '__main__':
     parser.add_argument('--freeze', nargs='+', type=int, default=[0], help='Freeze layers: backbone of yolov7=50, first3=0 1 2')
     parser.add_argument('--v5-metric', action='store_true', help='assume maximum recall as 1.0 in AP calculation')
     parser.add_argument('--overwrite', action='store_true', help='overwrite the project')
+    # parser.add_argument('--obb', action='store_true', help='train OBB boxes')
     opt = parser.parse_args()
 
     # Set DDP variables
