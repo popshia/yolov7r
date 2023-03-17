@@ -1,8 +1,0 @@
-train: /home/lab602.11077009/.pipeline/11077009/yolov7r/data/DOTA_1.0/overlap_200/train.txt
-val: /home/lab602.11077009/.pipeline/11077009/yolov7r/data/DOTA_1.0/overlap_200/val.txt
-
-# number of classes
-nc: 15
-
-# class names
-names: ['plane', 'baseball-diamond', 'bridge', 'ground-track-field', 'small-vehicle', 'large-vehicle', 'ship', 'tennis-court', 'basketball-court', 'storage-tank', 'soccer-ball-field', 'roundabout', 'harbor', 'swimming-pool', 'helicopter']

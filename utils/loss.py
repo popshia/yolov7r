@@ -9,6 +9,7 @@ from utils.torch_utils import is_parallel
 
 from utils.plots import plot_targets_and_anchors
 
+from utils.Rotated_IoU import oriented_iou_loss
 
 def smooth_BCE(eps=0.1):  # https://github.com/ultralytics/yolov3/issues/238#issuecomment-598028441
     # return positive, negative label smoothing BCE targets
@@ -453,7 +454,7 @@ class ComputeLoss:
         for k in 'na', 'nc', 'nl', 'anchors':
             setattr(self, k, getattr(det, k))
 
-    def __call__(self, p, targets):  # predictions, targets, model
+    def __call__(self, p, targets, loss_terms):  # predictions, targets, model
         device = targets.device
         # REVIEW: add lrad
         # lcls, lbox, lobj = torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device)
@@ -633,8 +634,7 @@ class ComputeLossOTA:
             setattr(self, k, getattr(det, k))
 
     # REVIEW: add other needed parameters for ploting anchors
-    # def __call__(self, p, targets, imgs):  # predictions, targets, model   
-    def __call__(self, p, targets, imgs, tb_writer, iters, model, epoch, imgs_to_plot_anchor):  # predictions, targets, model   
+    def __call__(self, p, targets, imgs, loss_terms):  # predictions, targets, model   
         device = targets.device
 
         # REVIEW: add radian loss "lrad"
@@ -645,18 +645,24 @@ class ComputeLossOTA:
         # bs, as_, gjs, gis, targets, anchors = self.build_targets(p, targets, imgs)
         bs, as_, gjs, gis, targets, anchors, rads, indices, offsets = self.build_targets(p, targets, imgs)
 
-        # TODO: add draw anchors to tensorboard
-        # if tb_writer and iters == 0:
-        #     plot_targets_and_anchors(tb_writer, model, iters, epoch, imgs_to_plot_anchor, indices, targets, anchors, gjs, gis, offsets)
-
         pre_gen_gains = [torch.tensor(pp.shape, device=device)[[3, 2, 3, 2]] for pp in p] 
     
+        # REVIEW: add loss category
+        iou_method = "iou"
+        if loss_terms.find("giou") != -1:
+            iou_method = "giou"
+        elif loss_terms.find("ciou") != -1:
+            iou_method = "ciou"
+        elif loss_terms.find("diou") != -1:
+            iou_method = "diou"
+        elif loss_terms.find("iou") != -1:
+            iou_method = "iou"
 
         # Losses
         for i, pi in enumerate(p):  # layer index, layer predictions
             # REVIEW: get corresponding rads
             # b, a, gj, gi = bs[i], as_[i], gjs[i], gis[i]  # image, anchor, gridy, gridx
-            b, a, gj, gi, rad = bs[i], as_[i], gjs[i], gis[i], rads[i]  # image, anchor, gridy, gridx, rads
+            b, a, gj, gi, trad = bs[i], as_[i], gjs[i], gis[i], rads[i]  # image, anchor, gridy, gridx, rads
             # <INFO> rad: current layer's all targets' radian value
 
             tobj = torch.zeros_like(pi[..., 0], device=device)  # target obj
@@ -675,7 +681,38 @@ class ComputeLossOTA:
                 pbox = torch.cat((pxy, pwh), 1)  # predicted box
                 selected_tbox = targets[i][:, 2:6] * pre_gen_gains[i]
                 selected_tbox[:, :2] -= grid
-                iou = bbox_iou(pbox.T, selected_tbox, x1y1x2y2=False, CIoU=True)  # iou(prediction, target)
+
+                # REVIEW: add prad
+                prad = ps[:, 4]
+
+                # REVIEW: add hbb losses
+                if loss_terms.find('h'+iou_method) != -1:
+                    if loss_terms.find("giou") != -1:
+                        iou = bbox_iou(pbox.T, selected_tbox, x1y1x2y2=False, GIoU=True)  # iou(prediction, target)
+                    elif loss_terms.find("ciou") != -1:
+                        iou = bbox_iou(pbox.T, selected_tbox, x1y1x2y2=False, CIoU=True)  # iou(prediction, target)
+                    elif loss_terms.find("diou") != -1:
+                        iou = bbox_iou(pbox.T, selected_tbox, x1y1x2y2=False, DIoU=True)  # iou(prediction, target)
+                    if loss_terms.find("iou") != -1:
+                        iou = bbox_iou(pbox.T, selected_tbox, x1y1x2y2=False)  # iou(prediction, target)
+                elif loss_terms.find('r'+iou_method) != -1:
+                    tbox_convert = selected_tbox.clone()
+                    tbox_convert[:, 1] = selected_tbox[:, 1]
+                    trad = torch.where(trad-0.25<0, trad-0.25+1, trad-0.25)
+                    pbox_convert = pbox.clone()
+                    pbox_convert[:, 1] = -pbox[:, 1]
+                    prad = torch.where(prad-0.25<0, prad-0.25+1, prad-0.25)
+
+                    txywhrad = torch.cat((tbox_convert, trad.view(-1, 1)), dim=1).unsqueeze(0)
+                    pxywhrad = torch.cat((pbox_convert, prad.view(-1, 1)), dim=1).unsqueeze(0)
+
+                    if loss_terms.find("giou") != -1:
+                        iou = oriented_iou_loss.cal_giou(pxywhrad, txywhrad)[0]
+                    elif loss_terms.find("diou") != -1:
+                        iou = oriented_iou_loss.cal_diou(pxywhrad, txywhrad)[0]
+                    elif loss_terms.find("iou") != -1:
+                        iou = oriented_iou_loss.cal_iou(pxywhrad, txywhrad)[0]
+
                 # NOTE: box loss
                 lbox += (1.0 - iou).mean()  # iou loss
 
@@ -702,7 +739,7 @@ class ComputeLossOTA:
 
                 # REVIEW: add radian loss with Smooth L1 Loss
                 # print(ps[:, 4].size(), rad.size()) # both are in the same size
-                lrad += self.SL1rad(ps[:, 4].sigmoid(), rad)
+                lrad += self.SL1rad(ps[:, 4], trad)
 
             # REVIEW: change obj_loss from index 4 to 5
             # obji = self.BCEobj(pi[..., 4], tobj)
@@ -720,7 +757,7 @@ class ComputeLossOTA:
         lobj *= self.hyp['obj']
         lcls *= self.hyp['cls']
 
-        # TODO: add lrad multiply with its own weight, need to add hyp option in hyp file
+        # REVIEW: add lrad multiply with its own weight, need to add hyp option in hyp file
         lrad *= self.hyp['rad']
 
         bs = tobj.shape[0]  # batch size

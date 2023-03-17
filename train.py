@@ -369,16 +369,12 @@ def train(hyp, opt, device, tb_writer=None):
             # Forward
             with amp.autocast(enabled=cuda):
                 pred = model(imgs)  # forward
-                # print( pred[0][0][0])
-                # print( '-----------------------------')
                 if 'loss_ota' not in hyp or hyp['loss_ota'] == 1:
-                    # REVIEW: add other parameters for plotting anchors
-                    # loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs)  # loss scaled by batch_size
-                    loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs, tb_writer, i, model, epoch, imgs_to_plot_anchor)  # loss scaled by batch_size
+                    # REVIEW: add loss_term in compute loss
+                    loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs, opt.loss_terms)  # loss scaled by batch_size
                 else:
-                    # REVIEW: add other parameters for plotting anchors
-                    # loss, loss_items = compute_loss(pred, targets.to(device), imgs)  # loss scaled by batch_size
-                    loss, loss_items = compute_loss(pred, targets.to(device), imgs, tb_writer, i, model, epoch)  # loss scaled by batch_size
+                    # REVIEW: add loss_term in compute loss
+                    loss, loss_items = compute_loss(pred, targets.to(device), imgs, opt.loss_terms)  # loss scaled by batch_size
                 if rank != -1:
                     loss *= opt.world_size  # gradient averaged between devices in DDP mode
                 if opt.quad:
@@ -591,7 +587,7 @@ if __name__ == '__main__':
     parser.add_argument('--freeze', nargs='+', type=int, default=[0], help='Freeze layers: backbone of yolov7=50, first3=0 1 2')
     parser.add_argument('--v5-metric', action='store_true', help='assume maximum recall as 1.0 in AP calculation')
     parser.add_argument('--overwrite', action='store_true', help='overwrite the project')
-    # parser.add_argument('--obb', action='store_true', help='train OBB boxes')
+    parser.add_argument('--loss_terms', type=str, default="rciou", help='whcih loss to be apply on iou calculation (GIOU, DIOU, CIOU, IOU)')
     opt = parser.parse_args()
 
     # Set DDP variables
