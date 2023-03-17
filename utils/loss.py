@@ -685,7 +685,7 @@ class ComputeLossOTA:
                 # REVIEW: add prad
                 prad = ps[:, 4]
 
-                # REVIEW: add hbb losses
+                # REVIEW: add different iou calculation for hbb and obb box loss
                 if loss_terms.find('h'+iou_method) != -1:
                     if loss_terms.find("giou") != -1:
                         iou = bbox_iou(pbox.T, selected_tbox, x1y1x2y2=False, GIoU=True)  # iou(prediction, target)
