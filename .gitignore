@@ -270,4 +270,7 @@ crashlytics-build.properties
 fabric.properties
 
 # vscode workspace
-yolov7r.code-workspace
+# yolov7r.code-workspace
+
+# Rotated_IoU
+utils/Rotated_IoU/data/*
