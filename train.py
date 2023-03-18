@@ -443,10 +443,8 @@ def train(hyp, opt, device, tb_writer=None):
                                                  compute_loss=compute_loss,
                                                  is_coco=is_coco,
                                                  v5_metric=opt.v5_metric,
-                                                 # REVIEW: tb_writer, epoch
-                                                 tb_writer=tb_writer,
-                                                 epoch=epoch)
-
+                                                 # REVIEW: add loss_terms
+                                                 loss_terms=opt.loss_terms)
             # Write
             with open(results_file, 'a') as f:
                 # REVIEW: change output str count from 7 to 8
@@ -528,7 +526,9 @@ def train(hyp, opt, device, tb_writer=None):
                                           save_json=True,
                                           plots=False,
                                           is_coco=is_coco,
-                                          v5_metric=opt.v5_metric)
+                                          v5_metric=opt.v5_metric,
+                                          # REVIEW: add loss_terms
+                                          loss_terms=opt.loss_terms)
 
         # Strip optimizers
         final = best if best.exists() else last  # final model
@@ -587,7 +587,7 @@ if __name__ == '__main__':
     parser.add_argument('--freeze', nargs='+', type=int, default=[0], help='Freeze layers: backbone of yolov7=50, first3=0 1 2')
     parser.add_argument('--v5-metric', action='store_true', help='assume maximum recall as 1.0 in AP calculation')
     parser.add_argument('--overwrite', action='store_true', help='overwrite the project')
-    parser.add_argument('--loss_terms', type=str, default="rciou", help='whcih loss to be apply on iou calculation (GIOU, DIOU, CIOU, IOU)')
+    parser.add_argument('--loss-terms', type=str, default="rdiou", help='whcih loss to be apply on iou calculation (GIOU, DIOU, CIOU, IOU)')
     opt = parser.parse_args()
 
     # Set DDP variables

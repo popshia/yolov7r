@@ -22,7 +22,7 @@ from utils.google_utils import gsutil_getsize
 from utils.metrics import fitness
 from utils.torch_utils import init_torch_seeds
 
-from utils.box_utils.rotate_polygon_nms import rotate_gpu_nms
+# from utils.box_utils.rotate_polygon_nms import rotate_gpu_nms
 
 # Settings
 torch.set_printoptions(linewidth=320, precision=5, profile='long')
@@ -607,8 +607,7 @@ def box_diou(box1, box2, eps: float = 1e-7):
     return iou - (centers_distance_squared / diagonal_distance_squared)
 
 
-def non_max_suppression(prediction, conf_thres=0.25, iou_thres=0.45, classes=None, agnostic=False, multi_label=False,
-                        labels=()):
+def non_max_suppression(prediction, conf_thres=0.25, iou_thres=0.45, classes=None, agnostic=False, multi_label=False, labels=()):
     """Runs Non-Maximum Suppression (NMS) on inference results
 
     Returns:
@@ -730,6 +729,172 @@ def non_max_suppression(prediction, conf_thres=0.25, iou_thres=0.45, classes=Non
         boxes, scores = x[:, :4] + c, x[:, 5]  # boxes (offset by class), scores
 
         i = torchvision.ops.nms(boxes, scores, iou_thres)  # NMS
+        if i.shape[0] > max_det:  # limit detections
+            i = i[:max_det]
+        if merge and (1 < n < 3E3):  # Merge NMS (boxes merged using weighted mean)
+            # update boxes as boxes(i,4) = weights(i,n) * boxes(n,4)
+            iou = box_iou(boxes[i], boxes) > iou_thres  # iou matrix
+            weights = iou * scores[None]  # box weights
+            x[i, :4] = torch.mm(weights, x[:, :4]).float() / weights.sum(1, keepdim=True)  # merged boxes
+            if redundant:
+                i = i[iou.sum(1) > 1]  # require redundancy
+
+        output[xi] = x[i]
+        if (time.time() - t) > time_limit:
+            print(f'WARNING: NMS time limit {time_limit}s exceeded')
+            break  # time limit exceeded
+
+    return output
+
+
+def rotate_non_max_suppression(prediction, conf_thres=0.1, iou_thres=0.6, classes=None, agnostic=False, multi_label=False, labels=()):
+    """Runs Rotate Non-Maximum Suppression (NMS) on inference results
+
+    Returns:
+         list of detections, on (n,7) tensor per image [xyxy, rad, conf, cls]
+    """
+
+    # REVIEW: add dota each class iou thres
+    dota_nms_iou_thres = [("plane", 0,3),
+                          ("baseball-diamond", 0.3),
+                          ("bridge",0.0001),
+                          ("ground-track-field",0.3),
+                          ("small-vehicle",0.2),
+                          ("large-vehicle",0.1),
+                          ("ship",0.05),
+                          ("tennis-court",0.3),
+                          ("basketball-court",0.3),
+                          ("storage-tank",0.2),
+                          ("soccer-ball-field",0.3),
+                          ("roundabout",0.1),
+                          ("harbor",0.0001),
+                          ("swimming-pool",0.1),
+                          ("helicopter",0.2)]
+
+    # REVIEW: change prediction.shape minus from 5 to 6
+    # nc = prediction.shape[2] - 5  # number of classes
+    nc = prediction.shape[2] - 6  # number of classes
+    
+    # REVIEW: change conf index from 4 to 5
+    # xc = prediction[..., 4] > conf_thres  # candidates
+    xc = prediction[..., 5] > conf_thres  # candidates
+
+    # Settings
+    min_wh, max_wh = 2, 4096  # (pixels) minimum and maximum box width and height
+    max_det = 300  # maximum number of detections per image
+    max_nms = 30000  # maximum number of boxes into torchvision.ops.nms()
+    time_limit = 10.0  # seconds to quit after
+    redundant = True  # require redundant detections
+    multi_label &= nc > 1  # multiple labels per box (adds 0.5ms/img)
+    merge = False  # use merge-NMS
+
+    t = time.time()
+    output = [torch.zeros((0, 6), device=prediction.device)] * prediction.shape[0]
+    for xi, x in enumerate(prediction):  # image index, image inference
+        # Apply constraints
+        # x[((x[..., 2:4] < min_wh) | (x[..., 2:4] > max_wh)).any(1), 4] = 0  # width-height
+        x = x[xc[xi]]  # confidence
+
+        # Cat apriori labels if autolabelling
+        if labels and len(labels[xi]):
+            l = labels[xi]
+
+            # REVIEW: change nc+5 to nc+6
+            # v = torch.zeros((len(l), nc + 5), device=x.device)
+            v = torch.zeros((len(l), nc + 6), device=x.device)
+
+            v[:, :4] = l[:, 1:5]  # box
+
+            # REVIEW: add v[:, 4] for radian value
+            v[:, 4] = l[:, 5]  # radian
+
+            # REVIEW: change conf index from 4 to 5
+            # v[:, 4] = 1.0  # conf
+            v[:, 5] = 1.0  # conf
+
+            # REVIEW: change from +5 to +6
+            # v[range(len(l)), l[:, 0].long() + 5] = 1.0  # cls
+            v[range(len(l)), l[:, 0].long() + 6] = 1.0  # cls
+            x = torch.cat((x, v), 0)
+
+        # If none remain process next image
+        if not x.shape[0]:
+            continue
+
+        # Compute conf
+        if nc == 1:
+            # REVIEW: change both index to corresponding index
+            # x[:, 5:] = x[:, 4:5] # for models with one class, cls_loss is 0 and cls_conf is always 0.5,
+                                 # so there is no need to multiplicate.
+            x[:, 6:] = x[:, 5:6] # for models with one class, cls_loss is 0 and cls_conf is always 0.5,
+        else:
+            # REVIEW: change both index to corresponding index
+            # x[:, 5:] *= x[:, 4:5]  # conf = obj_conf * cls_conf
+            x[:, 6:] *= x[:, 5:6]  # conf = obj_conf * cls_conf
+
+        # Box (center x, center y, width, height) to (x1, y1, x2, y2)
+        box = xywh2xyxy(x[:, :4])
+
+        # REVIEW: add radian
+        rad = x[:, 4:5]
+
+        # TODO: multilabeling index fixing
+        # Detections matrix nx6 (xyxy, conf, cls)
+        if multi_label:
+            # REVIEW: change indices
+            # i, j = (x[:, 5:] > conf_thres).nonzero(as_tuple=False).T
+            # x = torch.cat((box[i], x[i, j + 5, None], j[:, None].float()), 1)
+            i, j = (x[:, 6:] > conf_thres).nonzero(as_tuple=False).T
+            # REVIEW: add rad to x
+            # x = torch.cat((box[i], x[i, j + 6, None], j[:, None].float()), 1)
+            x = torch.cat((box[i], rad[i], x[i, j + 6, None], j[:, None].float()), 1)
+        else:  # best class only
+            # REVIEW: change index
+            # conf, j = x[:, 5:].max(1, keepdim=True)
+            conf, j = x[:, 6:].max(1, keepdim=True)
+
+            # REVIEW: cat radian
+            # x = torch.cat((box, conf, j.float()), 1)[conf.view(-1) > conf_thres]
+            x = torch.cat((box, rad, conf, j.float()), 1)[conf.view(-1) > conf_thres]
+
+        # Filter by class
+        if classes is not None:
+            # REVIEW: change class index
+            # x = x[(x[:, 5:6] == torch.tensor(classes, device=x.device)).any(1)]
+            x = x[(x[:, 6:7] == torch.tensor(classes, device=x.device)).any(1)]
+
+        # Apply finite constraint
+        # if not torch.isfinite(x).all():
+        #     x = x[torch.isfinite(x).all(1)]
+
+        # Check shape
+        n = x.shape[0]  # number of boxes
+        if not n:  # no boxes
+            continue
+        elif n > max_nms:  # excess boxes
+            # REVIEW: fix conf index
+            # x = x[x[:, 4].argsort(descending=True)[:max_nms]]  # sort by confidence
+            x = x[x[:, 5].argsort(descending=True)[:max_nms]]  # sort by confidence
+
+        # Batched NMS
+        # REVIEW: fix class index
+        # c = x[:, 5:6] * (0 if agnostic else max_wh)  # classes
+        c = x[:, 6:7] * (0 if agnostic else max_wh)  # classes
+
+        # REVIEW: change box index and score index
+        # boxes, scores = x[:, :4] + c, x[:, 4]  # boxes (offset by class), scores
+        boxes, scores = x[:, :5] + c, x[:, 6]  # boxes (offset by class), scores
+
+        # REVIEW: add xywhrad conversion
+        boxes4nms = boxes.clone()
+        boxes4nms[:, 1] = -boxes[:, 1]
+        boxes4nms[:, 1] = torch.where(boxes4nms[:, 4]-0.25<0, boxes4nms[:, 4]-0.25+1, boxes4nms[:, 4]-0.25)
+
+        # REVIEW: add rotate_gpu_nms
+        # i = torchvision.ops.nms(boxes, scores, iou_thres)  # NMS
+        # i = rotate_gpu_nms(torch.cat((boxes4nms, scores.view(-1, 1)), dim=1).cpu().numpy(), iou_thres, torch.cuda.current_device())
+        i = torch.from_numpy(i)
+
         if i.shape[0] > max_det:  # limit detections
             i = i[:max_det]
         if merge and (1 < n < 3E3):  # Merge NMS (boxes merged using weighted mean)

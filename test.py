@@ -13,7 +13,7 @@ from tqdm import tqdm
 from models.experimental import attempt_load
 from utils.datasets import create_dataloader
 from utils.general import coco80_to_coco91_class, check_dataset, check_file, check_img_size, check_requirements, \
-    box_iou, non_max_suppression, scale_coords, xyxy2xywh, xywh2xyxy, set_logging, increment_path, colorstr
+    box_iou, non_max_suppression, scale_coords, xyxy2xywh, xywh2xyxy, set_logging, increment_path, colorstr, rotate_non_max_suppression
 from utils.metrics import ap_per_class, ConfusionMatrix
 from utils.plots import plot_images, output_to_target, plot_study_txt, plot_pred_results
 from utils.torch_utils import select_device, time_synchronized, TracedModel
@@ -45,8 +45,7 @@ def test(data,
          is_coco=False,
          v5_metric=False,
          # REVIEW: add tb_writer, epoch
-         tb_writer=None,
-         epoch=-1):
+         loss_terms=None):
     # Initialize/load model and set device
     training = model is not None
     if training:  # called by train.py
@@ -139,7 +138,7 @@ def test(data,
             if compute_loss:
                 # REVIEW: change compute_loss return index from 3 to 4
                 # loss += compute_loss([x.float() for x in train_out], targets)[1][:3]  # box, obj, cls
-                loss += compute_loss([x.float() for x in train_out], targets)[1][:4]  # box, obj, cls, rad
+                loss += compute_loss([x.float() for x in train_out], targets, loss_terms)[1][:4]  # box, obj, cls, rad
 
             # Run NMS
             # REVIEW: exclude radian value in targets by changing targets[:, 2:] to targets[:, 2:6]
@@ -151,9 +150,10 @@ def test(data,
             # if training and batch_i == rand_batch:
             #     plot_pred_results(tb_writer, "test/before_nms", out[0], 0.3, copy.deepcopy(img_to_save[0]), epoch, before_nms=True, wandb=wandb_logger)
 
-
             t = time_synchronized()
+            # REVIEW: add rotate_non_max_suppression
             out = non_max_suppression(out, conf_thres=conf_thres, iou_thres=iou_thres, labels=lb, multi_label=True)
+            # out = rotate_non_max_suppression(out, conf_thres=conf_thres, iou_thres=iou_thres, labels=lb, multi_label=True)
             t1 += time_synchronized() - t
 
         # REVIEW: add plotting for outputs after NMS
