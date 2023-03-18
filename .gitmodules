@@ -4,6 +4,3 @@
 [submodule "yolov5_obb"]
 	path = yolov5_obb
 	url = https://github.com/hukaixuan19970627/yolov5_obb
-[submodule "utils/Rotated_IoU"]
-	path = utils/Rotated_IoU
-	url = https://github.com/lilanxiao/Rotated_IoU
