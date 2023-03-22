@@ -7,23 +7,19 @@
 
 import os
 from os.path import join as pjoin
-from setuptools import setup
+import numpy as np
+from distutils.core import setup
 from distutils.extension import Extension
 from Cython.Distutils import build_ext
-import subprocess
-import numpy as np
-
 
 def find_in_path(name, path):
     "Find a file in a search path"
-    # Adapted fom
-    # http://code.activestate.com/recipes/52224-find-a-file-given-a-search-path/
+    #adapted fom http://code.activestate.com/recipes/52224-find-a-file-given-a-search-path/
     for dir in path.split(os.pathsep):
         binpath = pjoin(dir, name)
         if os.path.exists(binpath):
             return os.path.abspath(binpath)
     return None
-
 
 def locate_cuda():
     """Locate the CUDA environment on the system
@@ -58,13 +54,11 @@ def locate_cuda():
     return cudaconfig
 CUDA = locate_cuda()
 
-
 # Obtain the numpy include directory.  This logic works across numpy versions.
 try:
     numpy_include = np.get_include()
 except AttributeError:
     numpy_include = np.get_numpy_include()
-
 
 def customize_compiler_for_nvcc(self):
     """inject deep into distutils to customize how the dispatch
@@ -87,6 +81,7 @@ def customize_compiler_for_nvcc(self):
     # object but distutils doesn't have the ability to change compilers
     # based on source extension: we add it.
     def _compile(obj, src, ext, cc_args, extra_postargs, pp_opts):
+        print(extra_postargs)
         if os.path.splitext(src)[1] == '.cu':
             # use the cuda for .cu files
             self.set_executable('compiler_so', CUDA['nvcc'])
@@ -103,69 +98,35 @@ def customize_compiler_for_nvcc(self):
     # inject our redefined _compile method into the class
     self._compile = _compile
 
-
 # run the customize_compiler
 class custom_build_ext(build_ext):
     def build_extensions(self):
         customize_compiler_for_nvcc(self.compiler)
         build_ext.build_extensions(self)
 
-
 ext_modules = [
-    Extension('rbbox_overlaps',
-              ['rbbox_overlaps_kernel.cu', 'rbbox_overlaps.pyx'],
-              library_dirs=[CUDA['lib64']],
-              libraries=['cudart'],
-              language='c++',
-              runtime_library_dirs=[CUDA['lib64']],
-              # this syntax is specific to this build system
-              # we're only going to use certain compiler args with nvcc and not with
-              # gcc the implementation of this trick is in customize_compiler() below
-              extra_compile_args={'gcc': ["-Wno-unused-function"],
-                                  'nvcc': ['-arch=sm_35',
-                                           '--ptxas-options=-v',
-                                           '-c',
-                                           '--compiler-options',
-                                           "'-fPIC'"]},
-              include_dirs=[numpy_include, CUDA['include']]
-              ),
-    Extension('rotate_polygon_nms',
-        ['rotate_polygon_nms_kernel.cu', 'rotate_polygon_nms.pyx'],
-        library_dirs=[CUDA['lib64']],
-        libraries=['cudart'],
-        language='c++',
-        runtime_library_dirs=[CUDA['lib64']],
-        # this syntax is specific to this build system
-        # we're only going to use certain compiler args with nvcc and not with
-        # gcc the implementation of this trick is in customize_compiler() below
-        extra_compile_args={'gcc': ["-Wno-unused-function"],
-                            'nvcc': ['-arch=sm_35',
-                                     '--ptxas-options=-v',
-                                     '-c',
-                                     '--compiler-options',
-                                     "'-fPIC'"]},
-        include_dirs=[numpy_include, CUDA['include']]
+    Extension(
+        "cython_bbox",
+        ["bbox.pyx"],
+        extra_compile_args={'gcc': ["-Wno-cpp", "-Wno-unused-function"]},
+        include_dirs = [numpy_include]
     ),
-    Extension('iou_cpu',
-              ['iou_cpu.pyx'],
-              library_dirs=[CUDA['lib64']],
-              libraries=['cudart'],
-              language='c++',
-              runtime_library_dirs=[CUDA['lib64']],
-              # this syntax is specific to this build system
-              # we're only going to use certain compiler args with nvcc and not with
-              # gcc the implementation of this trick is in customize_compiler() below
-              extra_compile_args={'gcc': ["-Wno-unused-function"],
-                                  'nvcc': ['-arch=sm_35',
-                                           '--ptxas-options=-v',
-                                           '-c',
-                                           '--compiler-options',
-                                           "'-fPIC'"]},
-              include_dirs=[numpy_include, CUDA['include']])
+    Extension(
+        "cython_nms",
+        ["nms.pyx"],
+        extra_compile_args={'gcc': ["-Wno-cpp", "-Wno-unused-function"]},
+        include_dirs = [numpy_include]
+    )
+    # Extension(
+    #     "cpu_nms",
+    #     ["cpu_nms.pyx"],
+    #     extra_compile_args={'gcc': ["-Wno-cpp", "-Wno-unused-function"]},
+    #     include_dirs = [numpy_include]
+    # )
 ]
 
 setup(
-    name='fast_rcnn',
+    name='tf_faster_rcnn',
     ext_modules=ext_modules,
     # inject our custom trigger
     cmdclass={'build_ext': custom_build_ext},

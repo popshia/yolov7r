@@ -10,6 +10,7 @@ from utils.torch_utils import is_parallel
 from utils.plots import plot_targets_and_anchors
 
 from utils.Rotated_IoU import oriented_iou_loss
+import math
 
 def smooth_BCE(eps=0.1):  # https://github.com/ultralytics/yolov3/issues/238#issuecomment-598028441
     # return positive, negative label smoothing BCE targets
@@ -505,10 +506,10 @@ class ComputeLoss:
                 elif loss_terms.find('r'+iou_method) != -1:
                     tbox_convert = tbox[i].clone()
                     tbox_convert[:, 1] = -tbox[i][:, 1]
-                    trad_convert = torch.where(trad[i]-0.25<0, trad[i]-0.25+1, trad[i]-0.25)
+                    trad_convert = torch.where(trad[i]-0.25<0, (trad[i]-0.25+1)*math.pi*2, (trad[i]-0.25)*math.pi*2)
                     pbox_convert = pbox.clone()
                     pbox_convert[:, 1] = -pbox[:, 1]
-                    prad_convert = torch.where(prad-0.25<0, prad-0.25+1, prad-0.25)
+                    prad_convert = torch.where(prad-0.25<0, (prad-0.25+1)*math.pi*2, (prad-0.25)*math.pi*2)
 
                     txywhrad = torch.cat((tbox_convert, trad_convert.view(-1, 1)), dim=1).unsqueeze(0)
                     pxywhrad = torch.cat((pbox_convert, prad_convert.view(-1, 1)), dim=1).unsqueeze(0)
@@ -542,8 +543,7 @@ class ComputeLoss:
                 #     [file.write('%11.5g ' * 4 % tuple(x) + '\n') for x in torch.cat((txy[i], twh[i]), 1)]
 
                 # REVIEW: add radian loss with Smooth L1 Loss
-                # print(ps[:, 4].size(), rad.size()) # both are in the same size
-                lrad += self.SL1rad(ps[:, 4].sigmoid(), trad[i])
+                lrad += self.SL1rad(ps[:, 4], trad[i])
 
             # REVIEW: change obj_loss from index 4 to 5
             # obji = self.BCEobj(pi[..., 4], tobj)
@@ -739,10 +739,10 @@ class ComputeLossOTA:
                 elif loss_terms.find('r'+iou_method) != -1:
                     tbox_convert = selected_tbox.clone()
                     tbox_convert[:, 1] = -selected_tbox[:, 1]
-                    trad_convert = torch.where(trad-0.25<0, trad-0.25+1, trad-0.25)
+                    trad_convert = torch.where(trad-0.25<0, (trad-0.25+1)*math.pi*2, (trad-0.25)*math.pi*2)
                     pbox_convert = pbox.clone()
                     pbox_convert[:, 1] = -pbox[:, 1]
-                    prad_convert = torch.where(prad_convert-0.25<0, prad_convert-0.25+1, prad_convert-0.25)
+                    prad_convert = torch.where(prad_convert-0.25<0, (prad_convert-0.25+1)*math.pi*2, (prad_convert-0.25)*math.pi*2)
 
                     txywhrad = torch.cat((tbox_convert, trad_convert.view(-1, 1)), dim=1).unsqueeze(0)
                     pxywhrad = torch.cat((pbox_convert, prad_convert.view(-1, 1)), dim=1).unsqueeze(0)
@@ -779,7 +779,6 @@ class ComputeLossOTA:
                 #     [file.write('%11.5g ' * 4 % tuple(x) + '\n') for x in torch.cat((txy[i], twh[i]), 1)]
 
                 # REVIEW: add radian loss with Smooth L1 Loss
-                # print(ps[:, 4].size(), rad.size()) # both are in the same size
                 lrad += self.SL1rad(ps[:, 4], trad)
 
             # REVIEW: change obj_loss from index 4 to 5
@@ -806,7 +805,7 @@ class ComputeLossOTA:
         # REVIEW: add lrad to loss sum
         # loss = lbox + lobj + lcls
         loss = lbox + lobj + lcls + lrad
-        print(lbox.item(), lobj.item(), lcls.item(), lrad.item(), loss.item())
+        # print(lbox.item(), lobj.item(), lcls.item(), lrad.item(), loss.item())
 
         # REVIEW: add lrad in return
         # return loss * bs, torch.cat((lbox, lobj, lcls, loss)).detach()

@@ -75,14 +75,16 @@ def cal_diou(box1:torch.Tensor, box2:torch.Tensor, enclosing_type:str="smallest"
     y_offset = box1[...,1] - box2[..., 1]
     d2 = x_offset*x_offset + y_offset*y_offset
     diou_loss = 1. - iou + d2/c2
-    return diou_loss, iou
+    diou = iou - d2/c2
+    return diou, diou_loss, iou
 
 def cal_giou(box1:torch.Tensor, box2:torch.Tensor, enclosing_type:str="smallest"):
     iou, corners1, corners2, u = cal_iou(box1, box2)
     w, h = enclosing_box(corners1, corners2, enclosing_type)
     area_c =  w*h
     giou_loss = 1. - iou + ( area_c - u )/area_c
-    return giou_loss, iou
+    giou = iou - (area_c-u)/area_c
+    return giou, giou_loss, iou
 
 def cal_iou_3d(box3d1:torch.Tensor, box3d2:torch.Tensor, verbose=False):
     """calculated 3d iou. assume the 3d bounding boxes are only rotated around z axis

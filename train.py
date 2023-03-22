@@ -367,7 +367,8 @@ def train(hyp, opt, device, tb_writer=None):
                     imgs = F.interpolate(imgs, size=ns, mode='bilinear', align_corners=False)
 
             # Forward
-            with amp.autocast(enabled=cuda):
+            # with amp.autocast(enabled=cuda):
+            with amp.autocast(enabled=False):
                 pred = model(imgs)  # forward
                 if 'loss_ota' not in hyp or hyp['loss_ota'] == 1:
                     # REVIEW: add loss_term in compute loss
@@ -444,7 +445,10 @@ def train(hyp, opt, device, tb_writer=None):
                                                  is_coco=is_coco,
                                                  v5_metric=opt.v5_metric,
                                                  # REVIEW: add loss_terms
-                                                 loss_terms=opt.loss_terms)
+                                                 loss_terms=opt.loss_terms,
+                                                 # REVIEW: add tb_writer and epoch
+                                                 tb_writer=tb_writer,
+                                                 epoch=epoch)
             # Write
             with open(results_file, 'a') as f:
                 # REVIEW: change output str count from 7 to 8
@@ -528,7 +532,10 @@ def train(hyp, opt, device, tb_writer=None):
                                           is_coco=is_coco,
                                           v5_metric=opt.v5_metric,
                                           # REVIEW: add loss_terms
-                                          loss_terms=opt.loss_terms)
+                                          loss_terms=opt.loss_terms,
+                                          # REVIEW: add tb_writer and epoch
+                                          tb_writer=tb_writer,
+                                          epoch=epoch)
 
         # Strip optimizers
         final = best if best.exists() else last  # final model

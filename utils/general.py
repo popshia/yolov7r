@@ -22,7 +22,9 @@ from utils.google_utils import gsutil_getsize
 from utils.metrics import fitness
 from utils.torch_utils import init_torch_seeds
 
-# from utils.box_utils.rotate_polygon_nms import rotate_gpu_nms
+from utils.box_utils.rotate_polygon_nms import rotate_gpu_nms
+from utils.box_utils.iou_rotate import iou_rotate_calculate1
+import math
 
 # Settings
 torch.set_printoptions(linewidth=320, precision=5, profile='long')
@@ -388,7 +390,26 @@ def bbox_iou(box1, box2, x1y1x2y2=True, GIoU=False, DIoU=False, CIoU=False, eps=
     else:
         return iou  # IoU
 
+def r_box_iou(box1, box2, useGPU=True):
+    # https://github.com/pytorch/vision/blob/master/torchvision/ops/boxes.py
+    """
+    Return intersection-over-union (Jaccard index) of boxes.
+    Both sets of boxes are expected to be in (x, y, w, h, theta) format.
+    Arguments:
+        box1 (Tensor[N, 5])
+        box2 (Tensor[M, 5])
+    Returns:
+        iou (Tensor[N, M]): the NxM matrix containing the pairwise
+            IoU values for every element in boxes1 and boxes2
+    """
 
+    ious = iou_rotate_calculate1(box1.cpu().numpy(), box2.cpu().numpy(), use_gpu=useGPU, gpu_id=torch.cuda.current_device())
+    ious = torch.from_numpy(ious).to(box1.device)
+
+    # numpy to tensor if necessary
+    # ious = torch.from_numpy(ious).cuda()
+
+    return ious
 
 
 def bbox_alpha_iou(box1, box2, x1y1x2y2=False, GIoU=False, DIoU=False, CIoU=False, alpha=2, eps=1e-9):
@@ -754,23 +775,6 @@ def rotate_non_max_suppression(prediction, conf_thres=0.1, iou_thres=0.6, classe
          list of detections, on (n,7) tensor per image [xyxy, rad, conf, cls]
     """
 
-    # REVIEW: add dota each class iou thres
-    dota_nms_iou_thres = [("plane", 0,3),
-                          ("baseball-diamond", 0.3),
-                          ("bridge",0.0001),
-                          ("ground-track-field",0.3),
-                          ("small-vehicle",0.2),
-                          ("large-vehicle",0.1),
-                          ("ship",0.05),
-                          ("tennis-court",0.3),
-                          ("basketball-court",0.3),
-                          ("storage-tank",0.2),
-                          ("soccer-ball-field",0.3),
-                          ("roundabout",0.1),
-                          ("harbor",0.0001),
-                          ("swimming-pool",0.1),
-                          ("helicopter",0.2)]
-
     # REVIEW: change prediction.shape minus from 5 to 6
     # nc = prediction.shape[2] - 5  # number of classes
     nc = prediction.shape[2] - 6  # number of classes
@@ -888,11 +892,11 @@ def rotate_non_max_suppression(prediction, conf_thres=0.1, iou_thres=0.6, classe
         # REVIEW: add xywhrad conversion
         boxes4nms = boxes.clone()
         boxes4nms[:, 1] = -boxes[:, 1]
-        boxes4nms[:, 1] = torch.where(boxes4nms[:, 4]-0.25<0, boxes4nms[:, 4]-0.25+1, boxes4nms[:, 4]-0.25)
+        boxes4nms[:, 1] = torch.where(boxes4nms[:, 4]-0.25<0, (boxes4nms[:, 4]-0.25+1)*math.pi*2, (boxes4nms[:, 4]-0.25)*math.pi*2)
 
         # REVIEW: add rotate_gpu_nms
         # i = torchvision.ops.nms(boxes, scores, iou_thres)  # NMS
-        # i = rotate_gpu_nms(torch.cat((boxes4nms, scores.view(-1, 1)), dim=1).cpu().numpy(), iou_thres, torch.cuda.current_device())
+        i = rotate_gpu_nms(torch.cat((boxes4nms, scores.view(-1, 1)), dim=1).cpu().numpy(), iou_thres, torch.cuda.current_device())
         i = torch.from_numpy(i)
 
         if i.shape[0] > max_det:  # limit detections

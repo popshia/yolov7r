@@ -13,12 +13,13 @@ from tqdm import tqdm
 from models.experimental import attempt_load
 from utils.datasets import create_dataloader
 from utils.general import coco80_to_coco91_class, check_dataset, check_file, check_img_size, check_requirements, \
-    box_iou, non_max_suppression, scale_coords, xyxy2xywh, xywh2xyxy, set_logging, increment_path, colorstr, rotate_non_max_suppression
+    box_iou, non_max_suppression, scale_coords, xyxy2xywh, xywh2xyxy, set_logging, increment_path, colorstr, rotate_non_max_suppression, r_box_iou
 from utils.metrics import ap_per_class, ConfusionMatrix
 from utils.plots import plot_images, output_to_target, plot_study_txt, plot_pred_results
 from utils.torch_utils import select_device, time_synchronized, TracedModel
 
 import copy
+import math
 
 
 def test(data,
@@ -45,7 +46,9 @@ def test(data,
          is_coco=False,
          v5_metric=False,
          # REVIEW: add tb_writer, epoch
-         loss_terms=None):
+         loss_terms=None,
+         tb_writer=None,
+         epoch=None):
     # Initialize/load model and set device
     training = model is not None
     if training:  # called by train.py
@@ -147,18 +150,20 @@ def test(data,
             lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if save_hybrid else []  # for autolabelling
 
             # REVIEW: add plotting for outputs befrore NMS
-            # if training and batch_i == rand_batch:
-            #     plot_pred_results(tb_writer, "test/before_nms", out[0], 0.3, copy.deepcopy(img_to_save[0]), epoch, before_nms=True, wandb=wandb_logger)
+            if training and batch_i == rand_batch:
+                plot_pred_results(tb_writer, "test/before_nms", out[0], 0.3, copy.deepcopy(img_to_save[0]), epoch, before_nms=True, wandb=wandb_logger)
 
             t = time_synchronized()
+
             # REVIEW: add rotate_non_max_suppression
             out = non_max_suppression(out, conf_thres=conf_thres, iou_thres=iou_thres, labels=lb, multi_label=True)
             # out = rotate_non_max_suppression(out, conf_thres=conf_thres, iou_thres=iou_thres, labels=lb, multi_label=True)
+
             t1 += time_synchronized() - t
 
         # REVIEW: add plotting for outputs after NMS
-        # if training and batch_i == rand_batch:
-        #     plot_pred_results(tb_writer, "test/after_nms", out[0], 0.3, copy.deepcopy(img_to_save[0]), epoch, before_nms=False, wandb=wandb_logger)
+        if training and batch_i == rand_batch:
+            plot_pred_results(tb_writer, "test/after_nms", out[0], 0.3, copy.deepcopy(img_to_save[0]), epoch, before_nms=False, wandb=wandb_logger)
 
         # Statistics per image
         for si, pred in enumerate(out):
@@ -224,8 +229,13 @@ def test(data,
                 # target boxes
                 tbox = xywh2xyxy(labels[:, 1:5])
                 scale_coords(img[si].shape[1:], tbox, shapes[si][0], shapes[si][1])  # native-space labels
+
+                # REVIEW: add tbox_xywhrad
+                tbox_xywhrad = labels[:, 1:6]
+
                 if plots:
                     confusion_matrix.process_batch(predn, torch.cat((labels[:, 0:1], tbox), 1))
+                    # confusion_matrix.process_batch(predn, torch.cat((labels[:, 0:1], tbox_xywhrad), 1))
 
                 # Per target class
                 for cls in torch.unique(tcls_tensor):
@@ -240,6 +250,17 @@ def test(data,
                         # Prediction to target ious
                         ious, i = box_iou(predn[pi, :4], tbox[ti]).max(1)  # best ious, indices
 
+                        # REVIEW: add pred, target conversion
+                        # tbox4nms = tbox_xywhrad.clone()
+                        # tbox4nms[:, 1] = -tbox4nms[:, 1]
+                        # tbox4nms[:, 4] = torch.where(tbox4nms[:, 4]-0.25<0, (tbox4nms[:, 4]-0.25+1)*math.pi*2, (tbox4nms[:, 4]-0.25)*math.pi*2)
+                        # pbox4nms = predn[pi, :5].clone()
+                        # pbox4nms[:, 1] = -pbox4nms[:, 1]
+                        # pbox4nms[:, 4] = torch.where(pbox4nms[:, 4]-0.25<0, (pbox4nms[:, 4]-0.25+1)*math.pi*2, (pbox4nms[:, 4]-0.25)*math.pi*2)
+
+                        # REVIEW: add rotation iou
+                        # ious, i = r_box_iou(pbox4nms, tbox4nms[ti], useGPU=True).max(1)
+
                         # Append detections
                         detected_set = set()
                         for j in (ious > iouv[0]).nonzero(as_tuple=False):
@@ -251,11 +272,10 @@ def test(data,
                                 if len(detected) == nl:  # all targets already located in image
                                     break
 
-            # Append statistics (correct, conf, pcls, tcls)
-            # stats.append((correct.cpu(), pred[:, 4].cpu(), pred[:, 5].cpu(), tcls))
-
             # REVIEW: change conf index form 4 to 5, cls index from 5 to 6
             # TODO: append radian in stats?
+            # Append statistics (correct, conf, pcls, tcls)
+            # stats.append((correct.cpu(), pred[:, 4].cpu(), pred[:, 5].cpu(), tcls))
             stats.append((correct.cpu(), pred[:, 5].cpu(), pred[:, 6].cpu(), tcls))
 
         # Plot images
