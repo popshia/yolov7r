@@ -150,8 +150,8 @@ def test(data,
             lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if save_hybrid else []  # for autolabelling
 
             # REVIEW: add plotting for outputs befrore NMS
-            if training and batch_i == rand_batch:
-                plot_pred_results(tb_writer, "test/before_nms", out[0], 0.3, copy.deepcopy(img_to_save[0]), epoch, before_nms=True, wandb=wandb_logger)
+            # if training and batch_i == rand_batch:
+            #     plot_pred_results(tb_writer, "test/before_nms", out[0], 0.3, copy.deepcopy(img_to_save[0]), epoch, before_nms=True, wandb=wandb_logger)
 
             t = time_synchronized()
 
@@ -162,8 +162,8 @@ def test(data,
             t1 += time_synchronized() - t
 
         # REVIEW: add plotting for outputs after NMS
-        if training and batch_i == rand_batch:
-            plot_pred_results(tb_writer, "test/after_nms", out[0], 0.3, copy.deepcopy(img_to_save[0]), epoch, before_nms=False, wandb=wandb_logger)
+        # if training and batch_i == rand_batch:
+        #     plot_pred_results(tb_writer, "test/after_nms", out[0], 0.3, copy.deepcopy(img_to_save[0]), epoch, before_nms=False, wandb=wandb_logger)
 
         # Statistics per image
         for si, pred in enumerate(out):
@@ -247,9 +247,6 @@ def test(data,
 
                     # Search for detections
                     if pi.shape[0]:
-                        # Prediction to target ious
-                        ious, i = box_iou(predn[pi, :4], tbox[ti]).max(1)  # best ious, indices
-
                         # REVIEW: add pred, target conversion
                         # tbox4nms = tbox_xywhrad.clone()
                         # tbox4nms[:, 1] = -tbox4nms[:, 1]
@@ -258,7 +255,9 @@ def test(data,
                         # pbox4nms[:, 1] = -pbox4nms[:, 1]
                         # pbox4nms[:, 4] = torch.where(pbox4nms[:, 4]-0.25<0, (pbox4nms[:, 4]-0.25+1)*math.pi*2, (pbox4nms[:, 4]-0.25)*math.pi*2)
 
+                        # Prediction to target ious
                         # REVIEW: add rotation iou
+                        ious, i = box_iou(predn[pi, :4], tbox[ti]).max(1)  # best ious, indices
                         # ious, i = r_box_iou(pbox4nms, tbox4nms[ti], useGPU=True).max(1)
 
                         # Append detections

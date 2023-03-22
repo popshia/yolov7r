@@ -506,10 +506,12 @@ class ComputeLoss:
                 elif loss_terms.find('r'+iou_method) != -1:
                     tbox_convert = tbox[i].clone()
                     tbox_convert[:, 1] = -tbox[i][:, 1]
-                    trad_convert = torch.where(trad[i]-0.25<0, (trad[i]-0.25+1)*math.pi*2, (trad[i]-0.25)*math.pi*2)
+                    # trad_convert = torch.where(trad[i]-0.25<0, (trad[i]-0.25+1)*math.pi*2, (trad[i]-0.25)*math.pi*2)
+                    trad_convert = trad[i]
                     pbox_convert = pbox.clone()
                     pbox_convert[:, 1] = -pbox[:, 1]
-                    prad_convert = torch.where(prad-0.25<0, (prad-0.25+1)*math.pi*2, (prad-0.25)*math.pi*2)
+                    # prad_convert = torch.where(prad-0.25<0, (prad-0.25+1)*math.pi*2, (prad-0.25)*math.pi*2)
+                    prad_convert = prad
 
                     txywhrad = torch.cat((tbox_convert, trad_convert.view(-1, 1)), dim=1).unsqueeze(0)
                     pxywhrad = torch.cat((pbox_convert, prad_convert.view(-1, 1)), dim=1).unsqueeze(0)
@@ -543,7 +545,7 @@ class ComputeLoss:
                 #     [file.write('%11.5g ' * 4 % tuple(x) + '\n') for x in torch.cat((txy[i], twh[i]), 1)]
 
                 # REVIEW: add radian loss with Smooth L1 Loss
-                lrad += self.SL1rad(ps[:, 4], trad[i])
+                lrad += self.SL1rad(ps[:, 4].sigmoid(), trad[i])
 
             # REVIEW: change obj_loss from index 4 to 5
             # obji = self.BCEobj(pi[..., 4], tobj)
@@ -723,7 +725,7 @@ class ComputeLossOTA:
                 selected_tbox[:, :2] -= grid
 
                 # REVIEW: add prad
-                prad_convert = ps[:, 4]
+                prad = ps[:, 4]
 
                 # REVIEW: add different iou calculation for hbb and obb box loss
                 # iou = bbox_iou(pbox.T, selected_tbox, x1y1x2y2=False, CIoU=True)  # iou(prediction, target)
@@ -739,10 +741,12 @@ class ComputeLossOTA:
                 elif loss_terms.find('r'+iou_method) != -1:
                     tbox_convert = selected_tbox.clone()
                     tbox_convert[:, 1] = -selected_tbox[:, 1]
-                    trad_convert = torch.where(trad-0.25<0, (trad-0.25+1)*math.pi*2, (trad-0.25)*math.pi*2)
+                    # trad_convert = torch.where(trad-0.25<0, (trad-0.25+1)*math.pi*2, (trad-0.25)*math.pi*2)
+                    trad_convert = trad
                     pbox_convert = pbox.clone()
                     pbox_convert[:, 1] = -pbox[:, 1]
-                    prad_convert = torch.where(prad_convert-0.25<0, (prad_convert-0.25+1)*math.pi*2, (prad_convert-0.25)*math.pi*2)
+                    # prad_convert = torch.where(prad-0.25<0, (prad-0.25+1)*math.pi*2, (prad-0.25)*math.pi*2)
+                    prad_convert = prad
 
                     txywhrad = torch.cat((tbox_convert, trad_convert.view(-1, 1)), dim=1).unsqueeze(0)
                     pxywhrad = torch.cat((pbox_convert, prad_convert.view(-1, 1)), dim=1).unsqueeze(0)
@@ -779,7 +783,7 @@ class ComputeLossOTA:
                 #     [file.write('%11.5g ' * 4 % tuple(x) + '\n') for x in torch.cat((txy[i], twh[i]), 1)]
 
                 # REVIEW: add radian loss with Smooth L1 Loss
-                lrad += self.SL1rad(ps[:, 4], trad)
+                lrad += self.SL1rad(ps[:, 4].sigmoid(), trad)
 
             # REVIEW: change obj_loss from index 4 to 5
             # obji = self.BCEobj(pi[..., 4], tobj)
