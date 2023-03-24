@@ -887,16 +887,16 @@ def rotate_non_max_suppression(prediction, conf_thres=0.1, iou_thres=0.6, classe
 
         # REVIEW: change box index and score index
         # boxes, scores = x[:, :4] + c, x[:, 4]  # boxes (offset by class), scores
-        boxes, scores = x[:, :5] + c, x[:, 6]  # boxes (offset by class), scores
+        boxes, scores = x[:, :5] + c, x[:, 5]  # boxes (offset by class), scores
 
         # REVIEW: add xywhrad conversion
         boxes4nms = boxes.clone()
         boxes4nms[:, 1] = -boxes[:, 1]
-        boxes4nms[:, 1] = torch.where(boxes4nms[:, 4]-0.25<0, (boxes4nms[:, 4]-0.25+1)*math.pi*2, (boxes4nms[:, 4]-0.25)*math.pi*2)
+        # boxes4nms[:, 4] = torch.where(boxes4nms[:, 4]-0.25<0, (boxes4nms[:, 4]-0.25+1)*math.pi*2, (boxes4nms[:, 4]-0.25)*math.pi*2)
 
         # REVIEW: add rotate_gpu_nms
-        i = torchvision.ops.nms(boxes, scores, iou_thres)  # NMS
-        # i = rotate_gpu_nms(torch.cat((boxes4nms, scores.view(-1, 1)), dim=1).cpu().numpy(), iou_thres, torch.cuda.current_device())
+        # i = torchvision.ops.nms(boxes, scores, iou_thres)  # NMS
+        i = rotate_gpu_nms(torch.cat((boxes4nms, scores.view(-1, 1)), dim=1).cpu().numpy(), iou_thres, torch.cuda.current_device())
         i = torch.from_numpy(i)
 
         if i.shape[0] > max_det:  # limit detections
