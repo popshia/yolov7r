@@ -448,7 +448,8 @@ def train(hyp, opt, device, tb_writer=None):
                                                  loss_terms=opt.loss_terms,
                                                  # REVIEW: add tb_writer and epoch
                                                  tb_writer=tb_writer,
-                                                 epoch=epoch)
+                                                 epoch=epoch,
+                                                 opt=opt)
             # Write
             with open(results_file, 'a') as f:
                 # REVIEW: change output str count from 7 to 8
@@ -594,7 +595,8 @@ if __name__ == '__main__':
     parser.add_argument('--freeze', nargs='+', type=int, default=[0], help='Freeze layers: backbone of yolov7=50, first3=0 1 2')
     parser.add_argument('--v5-metric', action='store_true', help='assume maximum recall as 1.0 in AP calculation')
     parser.add_argument('--overwrite', action='store_true', help='overwrite the project')
-    parser.add_argument('--loss-terms', type=str, default="rdiou", help='whcih loss to be apply on iou calculation (GIOU, DIOU, CIOU, IOU)')
+    parser.add_argument('--loss-terms', type=str, default="rdiou", help='which loss to be apply on iou calculation (GIOU, DIOU, CIOU, IOU)')
+    parser.add_argument('--nms', type=str, default="rnms", help='which nms to be apply (hNMS, rNMS)')
     opt = parser.parse_args()
 
     # Set DDP variables

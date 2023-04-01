@@ -27,7 +27,7 @@ from torchvision.utils import save_image
 from torchvision.ops import roi_pool, roi_align, ps_roi_pool, ps_roi_align
 
 from utils.general import check_requirements, xyxy2xywh, xywh2xyxy, xywhn2xyxy, xyn2xy, segment2box, segments2boxes, \
-    resample_segments, clean_str
+    resample_segments, clean_str, xywhtheta24xy_new
 from utils.torch_utils import torch_distributed_zero_first
 
 # Parameters
@@ -631,6 +631,9 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                             label[5] = 0.25 + (0.25-label[5])
                         elif 0.5 < label[5] < 1:
                             label[5] = 0.75 + (0.75-label[5])
+
+        # REVIEW: convert xywhrad to xywhhead
+        # labels = convert_target_format(labels)
 
         # REVIEW: change torch.zeros size from (nL, 6) to (nL, 7)
         # labels_out = torch.zeros((nL, 6))
@@ -1338,3 +1341,9 @@ def load_segmentations(self, index):
     #print(key)
     # /work/handsomejw66/coco17/
     return self.segs[key]
+
+
+def convert_target_format(targets)
+    rbox4pts = xywhtheta24xy_new(targets[:,1:])
+    hxy = (rbox4pts[:,[0,1]]+rbox4pts[:,[2,3]])/2
+    return np.concatenate((targets[:,:-1],hxy),axis=1)

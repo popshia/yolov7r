@@ -28,6 +28,8 @@ def test(data,
          imgsz=640,
          conf_thres=0.001,
          iou_thres=0.6,  # for NMS
+         # REVIEW: why the higher iou_threshold, the better the performance?
+        #  iou_thres=0.7,  # for NMS
          save_json=False,
          single_cls=False,
          augment=False,
@@ -48,7 +50,8 @@ def test(data,
          # REVIEW: add tb_writer, epoch
          loss_terms=None,
          tb_writer=None,
-         epoch=None):
+         epoch=None,
+         opt=None):
     # Initialize/load model and set device
     training = model is not None
     if training:  # called by train.py
@@ -156,8 +159,10 @@ def test(data,
             t = time_synchronized()
 
             # REVIEW: add rotate_non_max_suppression
-            # out = non_max_suppression(out, conf_thres=conf_thres, iou_thres=iou_thres, labels=lb, multi_label=True)
-            out = rotate_non_max_suppression(out, conf_thres=conf_thres, iou_thres=iou_thres, labels=lb, multi_label=True)
+            if opt.nms == "hnms":
+                out = non_max_suppression(out, conf_thres=conf_thres, iou_thres=iou_thres, labels=lb, multi_label=True)
+            else:
+                out = rotate_non_max_suppression(out, conf_thres=conf_thres, iou_thres=iou_thres, labels=lb, multi_label=True)
 
             t1 += time_synchronized() - t
 

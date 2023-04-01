@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from utils.general import bbox_iou, bbox_alpha_iou, box_iou, box_giou, box_diou, box_ciou, xywh2xyxy
+from utils.general import bbox_iou, bbox_alpha_iou, box_iou, box_giou, box_diou, box_ciou, xywh2xyxy, gigj_head_offset
 from utils.torch_utils import is_parallel
 
 from utils.plots import plot_targets_and_anchors
@@ -506,11 +506,9 @@ class ComputeLoss:
                 elif loss_terms.find('r'+iou_method) != -1:
                     tbox_convert = tbox[i].clone()
                     tbox_convert[:, 1] = -tbox[i][:, 1]
-                    # trad_convert = torch.where(trad[i]-0.25<0, (trad[i]-0.25+1)*math.pi*2, (trad[i]-0.25)*math.pi*2)
                     trad_convert = trad[i]
                     pbox_convert = pbox.clone()
                     pbox_convert[:, 1] = -pbox[:, 1]
-                    # prad_convert = torch.where(prad-0.25<0, (prad-0.25+1)*math.pi*2, (prad-0.25)*math.pi*2)
                     prad_convert = prad
 
                     txywhrad = torch.cat((tbox_convert, trad_convert.view(-1, 1)), dim=1).unsqueeze(0)
@@ -741,11 +739,9 @@ class ComputeLossOTA:
                 elif loss_terms.find('r'+iou_method) != -1:
                     tbox_convert = selected_tbox.clone()
                     tbox_convert[:, 1] = -selected_tbox[:, 1]
-                    # trad_convert = torch.where(trad-0.25<0, (trad-0.25+1)*math.pi*2, (trad-0.25)*math.pi*2)
                     trad_convert = trad
                     pbox_convert = pbox.clone()
                     pbox_convert[:, 1] = -pbox[:, 1]
-                    # prad_convert = torch.where(prad-0.25<0, (prad-0.25+1)*math.pi*2, (prad-0.25)*math.pi*2)
                     prad_convert = prad
 
                     txywhrad = torch.cat((tbox_convert, trad_convert.view(-1, 1)), dim=1).unsqueeze(0)
@@ -782,8 +778,14 @@ class ComputeLossOTA:
                 # with open('targets.txt', 'a') as file:
                 #     [file.write('%11.5g ' * 4 % tuple(x) + '\n') for x in torch.cat((txy[i], twh[i]), 1)]
 
+                # REVIEW: add gigj and head point offsets
+                # NOTE: select_tbox: target box, pbox: predicted box
+                t_offset = gigj_head_offset(imgs[b].shape[1], selected_tbox, trad, gi, gj)
+                p_offset = gigj_head_offset(imgs[b].shape[1], pbox, prad, gi, gj)
+
                 # REVIEW: add radian loss with Smooth L1 Loss
-                lrad += self.SL1rad(ps[:, 4].sigmoid(), trad)
+                # lrad += self.SL1rad(ps[:, 4].sigmoid(), trad)
+                lrad += self.SL1rad(p_offset, t_offset)
 
             # REVIEW: change obj_loss from index 4 to 5
             # obji = self.BCEobj(pi[..., 4], tobj)
