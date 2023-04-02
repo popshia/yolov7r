@@ -1119,13 +1119,11 @@ def single_xywh2xyxy(x):
 
 def xyxy2poly(x, rad):
 	# Convert box from [x1, y1, x2, y2, rad] to [x1, y1, x2, y2, ..., x4, y4]
-
 	# get center, w, h, rad
 	center = torch.Tensor([(x[0]+x[2])/2,(x[1]+x[3])/2]) 
 	w = torch.Tensor([x[2]-x[0]])
 	h = torch.Tensor([x[3]-x[1]])
 	rad = torch.Tensor([rad*math.pi*2+math.pi/2])
-
 	# calculate cos and sin
 	cos, sin = torch.cos(rad), torch.sin(rad)
 	vector1 = torch.Tensor([(w/2 * cos, -w/2 * sin)])
@@ -1176,7 +1174,7 @@ def gigj_head_offset(shape, box, rad, gi, gj):
 	for i in range(len(box)):
 		polys = xywhrad2poly(shape, box[i], rad[i])
 		heads = ((polys[1] + polys[2])/2).astype(int)
-		offsets.append(math.dist([gi[i].cpu().item(), gj[i].cpu().item()], heads))
+		offsets.append(math.dist([gi[i].cpu().item(), gj[i].cpu().item()], heads)/shape)
 
 	return torch.FloatTensor(offsets)
 

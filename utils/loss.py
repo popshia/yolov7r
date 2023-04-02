@@ -436,6 +436,7 @@ class ComputeLoss:
 
         # REVIEW: add smooth L1 loss for radian loss calculation
         SL1rad = nn.SmoothL1Loss()
+        MSErad = nn.MSELoss()
 
         # Class label smoothing https://arxiv.org/pdf/1902.04103.pdf eqn 3
         self.cp, self.cn = smooth_BCE(eps=h.get('label_smoothing', 0.0))  # positive, negative BCE targets
@@ -542,8 +543,13 @@ class ComputeLoss:
                 # with open('targets.txt', 'a') as file:
                 #     [file.write('%11.5g ' * 4 % tuple(x) + '\n') for x in torch.cat((txy[i], twh[i]), 1)]
 
+                # REVIEW: add gigj and head point offsets
+                t_offset = gigj_head_offset(640, tbox[i], trad[i], gi, gj)
+                p_offset = gigj_head_offset(640, pbox, prad, gi, gj)
+
                 # REVIEW: add radian loss with Smooth L1 Loss
-                lrad += self.SL1rad(ps[:, 4].sigmoid(), trad[i])
+                # lrad += self.SL1rad(ps[:, 4].sigmoid(), trad)
+                lrad += self.SL1rad(p_offset.sigmoid(), t_offset)
 
             # REVIEW: change obj_loss from index 4 to 5
             # obji = self.BCEobj(pi[..., 4], tobj)
@@ -656,6 +662,7 @@ class ComputeLossOTA:
 
         # REVIEW: add smooth L1 loss for radian loss calculation
         SL1rad = nn.SmoothL1Loss()
+        MSErad = nn.MSELoss()
 
         # Class label smoothing https://arxiv.org/pdf/1902.04103.pdf eqn 3
         self.cp, self.cn = smooth_BCE(eps=h.get('label_smoothing', 0.0))  # positive, negative BCE targets
@@ -779,7 +786,6 @@ class ComputeLossOTA:
                 #     [file.write('%11.5g ' * 4 % tuple(x) + '\n') for x in torch.cat((txy[i], twh[i]), 1)]
 
                 # REVIEW: add gigj and head point offsets
-                # NOTE: select_tbox: target box, pbox: predicted box
                 t_offset = gigj_head_offset(imgs[b].shape[1], selected_tbox, trad, gi, gj)
                 p_offset = gigj_head_offset(imgs[b].shape[1], pbox, prad, gi, gj)
 

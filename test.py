@@ -51,7 +51,7 @@ def test(data,
          loss_terms=None,
          tb_writer=None,
          epoch=None,
-         opt=None):
+         nms=None):
     # Initialize/load model and set device
     training = model is not None
     if training:  # called by train.py
@@ -159,7 +159,7 @@ def test(data,
             t = time_synchronized()
 
             # REVIEW: add rotate_non_max_suppression
-            if opt.nms == "hnms":
+            if nms == "hnms":
                 out = non_max_suppression(out, conf_thres=conf_thres, iou_thres=iou_thres, labels=lb, multi_label=True)
             else:
                 out = rotate_non_max_suppression(out, conf_thres=conf_thres, iou_thres=iou_thres, labels=lb, multi_label=True)

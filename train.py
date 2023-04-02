@@ -449,7 +449,7 @@ def train(hyp, opt, device, tb_writer=None):
                                                  # REVIEW: add tb_writer and epoch
                                                  tb_writer=tb_writer,
                                                  epoch=epoch,
-                                                 opt=opt)
+                                                 nms=opt.nms)
             # Write
             with open(results_file, 'a') as f:
                 # REVIEW: change output str count from 7 to 8

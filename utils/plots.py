@@ -64,10 +64,11 @@ def plot_one_box(x, img, rad, color=None, label=None, line_thickness=3):
     tl = line_thickness or round(0.002 * (img.shape[0] + img.shape[1]) / 2) + 1  # line/font thickness
     color = color or [random.randint(0, 255) for _ in range(3)]
     # NOTE: x[0:4]: top-left and bottom-right corners of the box
-    c1, c2 = (int(x[0]), int(x[1])), (int(x[2]), int(x[3]))
+    # c1, c2 = (int(x[0]), int(x[1])), (int(x[2]), int(x[3]))
 
     # REVIEW: change x1, y1, x2, y2 to x1, y1, x2, y2..., x4, y4
     poly = xyxy2poly(x, rad)
+    c1 = poly[1]
 
     # REVIEW: change draw rectangle to contours
     cv2.drawContours(image=img, contours=[poly], contourIdx=-1, color=color, thickness=tl)

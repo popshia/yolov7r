@@ -1343,7 +1343,7 @@ def load_segmentations(self, index):
     return self.segs[key]
 
 
-def convert_target_format(targets)
+def convert_target_format(targets):
     rbox4pts = xywhtheta24xy_new(targets[:,1:])
     hxy = (rbox4pts[:,[0,1]]+rbox4pts[:,[2,3]])/2
     return np.concatenate((targets[:,:-1],hxy),axis=1)
