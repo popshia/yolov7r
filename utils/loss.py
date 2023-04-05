@@ -452,7 +452,7 @@ class ComputeLoss:
         #self.balance = {3: [4.0, 1.0, 0.4]}.get(det.nl, [4.0, 1.0, 0.5, 0.4, .1])  # P3-P7
         self.ssi = list(det.stride).index(16) if autobalance else 0  # stride 16 index
         # REVIEW: add self.SL1rad
-        self.BCEcls, self.BCEobj, self.SL1rad, self.gr, self.hyp, self.autobalance = BCEcls, BCEobj, SL1rad, model.gr, h, autobalance
+        self.BCEcls, self.BCEobj, self.SL1rad, self.MSErad, self.gr, self.hyp, self.autobalance = BCEcls, BCEobj, SL1rad, MSErad, model.gr, h, autobalance
         for k in 'na', 'nc', 'nl', 'anchors':
             setattr(self, k, getattr(det, k))
 
@@ -463,17 +463,6 @@ class ComputeLoss:
         lcls, lbox, lobj, lrad = torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device)
 
         tcls, tbox, trad, indices, anchors = self.build_targets(p, targets)  # targets
-
-        # REVIEW: add loss category
-        iou_method = "iou"
-        if loss_terms.find("giou") != -1:
-            iou_method = "giou"
-        elif loss_terms.find("ciou") != -1:
-            iou_method = "ciou"
-        elif loss_terms.find("diou") != -1:
-            iou_method = "diou"
-        elif loss_terms.find("iou") != -1:
-            iou_method = "iou"
 
         # Losses
         for i, pi in enumerate(p):  # layer index, layer predictions
@@ -495,22 +484,17 @@ class ComputeLoss:
 
                 # REVIEW: add different iou calculation for hbb and obb box losses
                 iou = bbox_iou(pbox.T, tbox[i], x1y1x2y2=False, CIoU=True)  # iou(prediction, target)
-                if loss_terms.find('h'+iou_method) != -1:
-                    if loss_terms.find("giou") != -1:
-                        iou = bbox_iou(pbox.T, tbox[i], x1y1x2y2=False, GIoU=True)  # iou(prediction, target)
-                    elif loss_terms.find("ciou") != -1:
-                        iou = bbox_iou(pbox.T, tbox[i], x1y1x2y2=False, CIoU=True)  # iou(prediction, target)
-                    elif loss_terms.find("diou") != -1:
-                        iou = bbox_iou(pbox.T, tbox[i], x1y1x2y2=False, DIoU=True)  # iou(prediction, target)
-                    if loss_terms.find("iou") != -1:
-                        iou = bbox_iou(pbox.T, tbox[i], x1y1x2y2=False)  # iou(prediction, target)
-                elif loss_terms.find('r'+iou_method) != -1:
+                if loss_terms.find("hciou") != -1:
+                    iou = bbox_iou(pbox.T, tbox[i], x1y1x2y2=False, CIoU=True)  # iou(prediction, target)
+                elif loss_terms.find('r') != -1:
                     tbox_convert = tbox[i].clone()
                     tbox_convert[:, 1] = -tbox[i][:, 1]
-                    trad_convert = trad[i]
+                    trad_convert = trad[i]*math.pi*2
+                    trad_convert = torch.where(trad_convert-math.pi/2<0, trad_convert-math.pi/2+2*math.pi, trad_convert-math.pi/2)
                     pbox_convert = pbox.clone()
                     pbox_convert[:, 1] = -pbox[:, 1]
-                    prad_convert = prad
+                    prad_convert = prad*math.pi*2
+                    prad_convert = torch.where(prad_convert-math.pi/2<0, prad_convert-math.pi/2+2*math.pi, prad_convert-math.pi/2)
 
                     txywhrad = torch.cat((tbox_convert, trad_convert.view(-1, 1)), dim=1).unsqueeze(0)
                     pxywhrad = torch.cat((pbox_convert, prad_convert.view(-1, 1)), dim=1).unsqueeze(0)
@@ -544,12 +528,12 @@ class ComputeLoss:
                 #     [file.write('%11.5g ' * 4 % tuple(x) + '\n') for x in torch.cat((txy[i], twh[i]), 1)]
 
                 # REVIEW: add gigj and head point offsets
-                t_offset = gigj_head_offset(640, tbox[i], trad[i], gi, gj)
-                p_offset = gigj_head_offset(640, pbox, prad, gi, gj)
+                # t_offset = gigj_head_offset(640, tbox[i], trad[i], gi, gj)
+                # p_offset = gigj_head_offset(640, pbox, prad, gi, gj)
 
                 # REVIEW: add radian loss with Smooth L1 Loss
-                # lrad += self.SL1rad(ps[:, 4].sigmoid(), trad)
-                lrad += self.SL1rad(p_offset.sigmoid(), t_offset)
+                lrad += self.SL1rad(ps[:, 4].sigmoid(), trad[i])
+                # lrad += self.SL1rad(p_offset.sigmoid(), t_offset)
 
             # REVIEW: change obj_loss from index 4 to 5
             # obji = self.BCEobj(pi[..., 4], tobj)
@@ -676,7 +660,7 @@ class ComputeLossOTA:
         self.balance = {3: [4.0, 1.0, 0.4]}.get(det.nl, [4.0, 1.0, 0.25, 0.06, .02])  # P3-P7
         self.ssi = list(det.stride).index(16) if autobalance else 0  # stride 16 index
         # REVIEW: add self.SL1rad
-        self.BCEcls, self.BCEobj, self.SL1rad, self.gr, self.hyp, self.autobalance = BCEcls, BCEobj, SL1rad, model.gr, h, autobalance
+        self.BCEcls, self.BCEobj, self.SL1rad, self.MSErad, self.gr, self.hyp, self.autobalance = BCEcls, BCEobj, SL1rad, MSErad, model.gr, h, autobalance
         for k in 'na', 'nc', 'nl', 'anchors', 'stride':
             setattr(self, k, getattr(det, k))
 
@@ -694,17 +678,6 @@ class ComputeLossOTA:
 
         pre_gen_gains = [torch.tensor(pp.shape, device=device)[[3, 2, 3, 2]] for pp in p] 
     
-        # REVIEW: add loss category
-        iou_method = "iou"
-        if loss_terms.find("giou") != -1:
-            iou_method = "giou"
-        elif loss_terms.find("ciou") != -1:
-            iou_method = "ciou"
-        elif loss_terms.find("diou") != -1:
-            iou_method = "diou"
-        elif loss_terms.find("iou") != -1:
-            iou_method = "iou"
-
         # Losses
         for i, pi in enumerate(p):  # layer index, layer predictions
             # REVIEW: get corresponding rads
@@ -734,22 +707,17 @@ class ComputeLossOTA:
 
                 # REVIEW: add different iou calculation for hbb and obb box loss
                 # iou = bbox_iou(pbox.T, selected_tbox, x1y1x2y2=False, CIoU=True)  # iou(prediction, target)
-                if loss_terms.find('h'+iou_method) != -1:
-                    if loss_terms.find("giou") != -1:
-                        iou = bbox_iou(pbox.T, selected_tbox, x1y1x2y2=False, GIoU=True)  # iou(prediction, target)
-                    elif loss_terms.find("ciou") != -1:
-                        iou = bbox_iou(pbox.T, selected_tbox, x1y1x2y2=False, CIoU=True)  # iou(prediction, target)
-                    elif loss_terms.find("diou") != -1:
-                        iou = bbox_iou(pbox.T, selected_tbox, x1y1x2y2=False, DIoU=True)  # iou(prediction, target)
-                    if loss_terms.find("iou") != -1:
-                        iou = bbox_iou(pbox.T, selected_tbox, x1y1x2y2=False)  # iou(prediction, target)
-                elif loss_terms.find('r'+iou_method) != -1:
+                if loss_terms.find("hciou") != -1:
+                    iou = bbox_iou(pbox.T, selected_tbox, x1y1x2y2=False, CIoU=True)  # iou(prediction, target)
+                elif loss_terms.find('r') != -1:
                     tbox_convert = selected_tbox.clone()
                     tbox_convert[:, 1] = -selected_tbox[:, 1]
-                    trad_convert = trad
+                    trad_convert = trad*math.pi*2
+                    trad_convert = torch.where(trad_convert-math.pi/2<0, trad_convert-math.pi/2+2*math.pi, trad_convert-math.pi/2)
                     pbox_convert = pbox.clone()
                     pbox_convert[:, 1] = -pbox[:, 1]
-                    prad_convert = prad
+                    prad_convert = prad*math.pi*2
+                    trad_convert = torch.where(prad_convert-math.pi/2<0, prad_convert-math.pi/2+2*math.pi, prad_convert-math.pi/2)
 
                     txywhrad = torch.cat((tbox_convert, trad_convert.view(-1, 1)), dim=1).unsqueeze(0)
                     pxywhrad = torch.cat((pbox_convert, prad_convert.view(-1, 1)), dim=1).unsqueeze(0)
@@ -786,12 +754,12 @@ class ComputeLossOTA:
                 #     [file.write('%11.5g ' * 4 % tuple(x) + '\n') for x in torch.cat((txy[i], twh[i]), 1)]
 
                 # REVIEW: add gigj and head point offsets
-                t_offset = gigj_head_offset(imgs[b].shape[1], selected_tbox, trad, gi, gj)
-                p_offset = gigj_head_offset(imgs[b].shape[1], pbox, prad, gi, gj)
+                # t_offset = gigj_head_offset(imgs[b].shape[1], selected_tbox, trad, gi, gj)
+                # p_offset = gigj_head_offset(imgs[b].shape[1], pbox, prad, gi, gj)
 
                 # REVIEW: add radian loss with Smooth L1 Loss
-                # lrad += self.SL1rad(ps[:, 4].sigmoid(), trad)
-                lrad += self.SL1rad(p_offset, t_offset)
+                lrad += self.SL1rad(ps[:, 4].sigmoid(), trad)
+                # lrad += self.SL1rad(p_offset, t_offset)
 
             # REVIEW: change obj_loss from index 4 to 5
             # obji = self.BCEobj(pi[..., 4], tobj)
