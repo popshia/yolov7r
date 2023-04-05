@@ -28,8 +28,6 @@ def test(data,
          imgsz=640,
          conf_thres=0.001,
          iou_thres=0.6,  # for NMS
-         # REVIEW: why the higher iou_threshold, the better the performance?
-        #  iou_thres=0.7,  # for NMS
          save_json=False,
          single_cls=False,
          augment=False,
@@ -128,6 +126,9 @@ def test(data,
         img /= 255.0  # 0 - 255 to 0.0 - 1.0
         targets = targets.to(device)
         nb, _, height, width = img.shape  # batch size, channels, height, width
+
+        # REVIEW: add whwh
+        whwh = torch.Tensor([width, height, width, height]).to(device)
 
         with torch.no_grad():
             # Run model
@@ -238,6 +239,7 @@ def test(data,
 
                 # REVIEW: add tbox_xywhrad
                 tbox_xywhrad = labels[:, 1:6]
+                tbox_xywhrad[:, 1:5] *= whwh
 
                 if plots:
                     confusion_matrix.process_batch(predn, torch.cat((labels[:, 0:1], tbox), 1))
@@ -256,10 +258,12 @@ def test(data,
                         # REVIEW: add pred, target conversion
                         # tbox4nms = tbox_xywhrad.clone()
                         # tbox4nms[:, 1] = -tbox4nms[:, 1]
-                        # tbox4nms[:, 4] = torch.where(tbox4nms[:, 4]-0.25<0, (tbox4nms[:, 4]-0.25+1)*math.pi*2, (tbox4nms[:, 4]-0.25)*math.pi*2)
+                        # tbox4nms[:, 4] = tbox4nms[:, 4]*math.pi*2
+                        # tbox4nms[:, 4] = torch.where(tbox4nms[:, 4]-math.pi/2<0, tbox4nms[:, 4]-math.pi/2+2*math.pi, tbox4nms[:, 4]-math.pi/2)
                         # pbox4nms = predn[pi, :5].clone()
                         # pbox4nms[:, 1] = -pbox4nms[:, 1]
-                        # pbox4nms[:, 4] = torch.where(pbox4nms[:, 4]-0.25<0, (pbox4nms[:, 4]-0.25+1)*math.pi*2, (pbox4nms[:, 4]-0.25)*math.pi*2)
+                        # pbox4nms[:, 4] = pbox4nms[:, 4]*math.pi*2
+                        # pbox4nms[:, 4] = torch.where(pbox4nms[:, 4]-math.pi/2<0, pbox4nms[:, 4]-math.pi/2+2*math.pi, pbox4nms[:, 4]-math.pi/2)
 
                         # Prediction to target ious
                         # REVIEW: add rotation iou

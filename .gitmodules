@@ -4,3 +4,6 @@
 [submodule "yolov5_obb"]
 	path = yolov5_obb
 	url = https://github.com/hukaixuan19970627/yolov5_obb
+[submodule "yolov5_annotations"]
+	path = yolov5_annotations
+	url = https://github.com/HuKai97/yolov5-5.x-annotations
