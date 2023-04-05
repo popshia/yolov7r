@@ -87,6 +87,7 @@ def test(data,
     check_dataset(data)  # check
     nc = 1 if single_cls else int(data['nc'])  # number of classes
     iouv = torch.linspace(0.5, 0.95, 10).to(device)  # iou vector for mAP@0.5:0.95
+    # NOTE: niou = 10
     niou = iouv.numel()
 
     # Logging
