@@ -489,10 +489,13 @@ class ComputeLoss:
                 elif loss_terms.find('r') != -1:
                     tbox_convert = tbox[i].clone()
                     tbox_convert[:, 1] = -tbox[i][:, 1]
+                    # FIXME: radian conversion???
+                    # trad_convert = trad[i]
                     trad_convert = trad[i]*math.pi*2
                     trad_convert = torch.where(trad_convert-math.pi/2<0, trad_convert-math.pi/2+2*math.pi, trad_convert-math.pi/2)
                     pbox_convert = pbox.clone()
                     pbox_convert[:, 1] = -pbox[:, 1]
+                    # prad_convert = prad
                     prad_convert = prad*math.pi*2
                     prad_convert = torch.where(prad_convert-math.pi/2<0, prad_convert-math.pi/2+2*math.pi, prad_convert-math.pi/2)
 
@@ -705,6 +708,9 @@ class ComputeLossOTA:
                 # REVIEW: add prad
                 prad = ps[:, 4]
 
+                # NOTE: pbox(N, 4), pbox.T(4, N)
+                # print(pbox.shape, pbox.T.shape)
+
                 # REVIEW: add different iou calculation for hbb and obb box loss
                 # iou = bbox_iou(pbox.T, selected_tbox, x1y1x2y2=False, CIoU=True)  # iou(prediction, target)
                 if loss_terms.find("hciou") != -1:
@@ -712,10 +718,13 @@ class ComputeLossOTA:
                 elif loss_terms.find('r') != -1:
                     tbox_convert = selected_tbox.clone()
                     tbox_convert[:, 1] = -selected_tbox[:, 1]
+                    # FIXME: radian conversion???
+                    # trad_convert = trad
                     trad_convert = trad*math.pi*2
                     trad_convert = torch.where(trad_convert-math.pi/2<0, trad_convert-math.pi/2+2*math.pi, trad_convert-math.pi/2)
                     pbox_convert = pbox.clone()
                     pbox_convert[:, 1] = -pbox[:, 1]
+                    # prad_convert = prad
                     prad_convert = prad*math.pi*2
                     trad_convert = torch.where(prad_convert-math.pi/2<0, prad_convert-math.pi/2+2*math.pi, prad_convert-math.pi/2)
 

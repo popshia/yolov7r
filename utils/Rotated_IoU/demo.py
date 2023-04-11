@@ -142,8 +142,8 @@ def main(loss_type:str="giou", enclosing_type:str="aligned"):
             if i%10 == 0:
                 iou_mask = (iou > 0).float()
                 mean_iou = torch.sum(iou) / (torch.sum(iou_mask) + 1e-8)
-                # print("[Epoch %d: %d/%d] train loss: %.4f  mean_iou: %.4f"
-                #     %(epoch, i, num_batch, iou_loss.detach().cpu().item(), mean_iou.detach().cpu().item()))
+                print("[Epoch %d: %d/%d] train loss: %.4f  mean_iou: %.4f"
+                    %(epoch, i, num_batch, iou_loss.detach().cpu().item(), mean_iou.detach().cpu().item()))
         lr_scheduler.step()
 
         # validate

@@ -131,24 +131,26 @@ class ConfusionMatrix:
         """
 
         # REVIEW: change conf index
-        detections = detections[detections[:, 4] > self.conf]
-        # detections = detections[detections[:, 5] > self.conf]
+        # detections = detections[detections[:, 4] > self.conf]
+        detections = detections[detections[:, 5] > self.conf]
 
         gt_classes = labels[:, 0].int()
 
         # REVIEW: change cls index
-        detection_classes = detections[:, 5].int()
-        # detection_classes = detections[:, 6].int()
+        # detection_classes = detections[:, 5].int()
+        detection_classes = detections[:, 6].int()
 
         # REVIEW: add convertions
-        # detections[:, 1] = -detections[:, 1]
-        # detections[:, 4] = torch.where(detections[:, 4]-0.25<0, (detections[:, 4]-0.25+1)*math.pi*2, (detections[:, 4]-0.25)*math.pi*2)
-        # labels[:, 2] = -labels[:, 2]
-        # labels[:, 5] = torch.where(labels[:, 5]-0.25<0, (labels[:, 5]-0.25+1)*math.pi*2, (labels[:, 5]-0.25)*math.pi*2)
+        detections[:, 1] = -detections[:, 1]
+        detections[:, 4] = detections[:, 4]*math.pi*2
+        detections[:, 4] = torch.where(detections[:, 4]-math.pi/2<0, detections[:, 4]-math.pi/2+2*math.pi, detections[:, 4]-math.pi/2)
+        labels[:, 2] = -labels[:, 2]
+        labels[:, 5] = labels[:, 5]*math.pi*2
+        labels[:, 5] = torch.where(labels[:, 5]-math.pi/2<0, labels[:, 5]-math.pi/2+2*math.pi, labels[:, 5]-math.pi/2)
 
         # REVIEW: add rotated iou
-        iou = general.box_iou(labels[:, 1:], detections[:, :4])
-        # iou = general.r_box_iou(labels[:, 1:6], detections[:, :5])
+        # iou = general.box_iou(labels[:, 1:], detections[:, :4])
+        iou = general.r_box_iou(labels[:, 1:6], detections[:, :5])
 
         x = torch.where(iou > self.iou_thres)
         if x[0].shape[0]:

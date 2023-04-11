@@ -3,6 +3,7 @@
 #include <vector>
 #include <iostream>
 #include <cmath>
+#include <stdio.h>
 
 #define CUDA_CHECK(condition) \
   /* Code block avoids redefinition of cudaError_t error */ \
@@ -193,8 +194,11 @@ __device__ inline int inter_pts(float * pts1, float * pts2, float * int_pts) {
 __device__ inline void convert_region(float * pts , float const * const region) {
 
   float angle = region[4];
-  float a_cos = cos(angle/180.0*3.1415926535);
-  float a_sin = sin(angle/180.0*3.1415926535);
+  //float a_cos = cos(angle/180.0*3.1415926535);
+  //float a_sin = sin(angle/180.0*3.1415926535);
+
+  float a_cos = cos(angle);
+  float a_sin = sin(angle);
 
   float ctr_x = region[0];
   float ctr_y = region[1];
@@ -248,7 +252,7 @@ __device__ inline float devRotateIoU(float const * const region1, float const * 
   float area1 = region1[2] * region1[3];
   float area2 = region2[2] * region2[3];
   float area_inter = inter(region1, region2);
-
+  
   return area_inter / (area1 + area2 - area_inter);
 
   

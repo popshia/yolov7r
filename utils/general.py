@@ -653,7 +653,10 @@ def non_max_suppression(prediction, conf_thres=0.25, iou_thres=0.45, classes=Non
     merge = False  # use merge-NMS
 
     t = time.time()
-    output = [torch.zeros((0, 6), device=prediction.device)] * prediction.shape[0]
+    # REVIEW: change output size
+    # output = [torch.zeros((0, 6), device=prediction.device)] * prediction.shape[0]
+    output = [torch.zeros((0, 7), device=prediction.device)] * prediction.shape[0]
+
     for xi, x in enumerate(prediction):  # image index, image inference
         # Apply constraints
         # x[((x[..., 2:4] < min_wh) | (x[..., 2:4] > max_wh)).any(1), 4] = 0  # width-height
@@ -793,7 +796,10 @@ def rotate_non_max_suppression(prediction, conf_thres=0.1, iou_thres=0.6, classe
     merge = False  # use merge-NMS
 
     t = time.time()
-    output = [torch.zeros((0, 6), device=prediction.device)] * prediction.shape[0]
+    # REVIEW: change output shape
+    # output = [torch.zeros((0, 6), device=prediction.device)] * prediction.shape[0]
+    output = [torch.zeros((0, 7), device=prediction.device)] * prediction.shape[0]
+
     for xi, x in enumerate(prediction):  # image index, image inference
         # Apply constraints
         # x[((x[..., 2:4] < min_wh) | (x[..., 2:4] > max_wh)).any(1), 4] = 0  # width-height
@@ -836,8 +842,10 @@ def rotate_non_max_suppression(prediction, conf_thres=0.1, iou_thres=0.6, classe
             # x[:, 5:] *= x[:, 4:5]  # conf = obj_conf * cls_conf
             x[:, 6:] *= x[:, 5:6]  # conf = obj_conf * cls_conf
 
+        # REVIEW: remove xywh2xyxy
         # Box (center x, center y, width, height) to (x1, y1, x2, y2)
-        box = xywh2xyxy(x[:, :4])
+        # box = xywh2xyxy(x[:, :4])
+        box = x[:, :5]
 
         # REVIEW: add radian
         rad = x[:, 4:5]
@@ -847,11 +855,10 @@ def rotate_non_max_suppression(prediction, conf_thres=0.1, iou_thres=0.6, classe
         if multi_label:
             # REVIEW: change indices
             # i, j = (x[:, 5:] > conf_thres).nonzero(as_tuple=False).T
-            # x = torch.cat((box[i], x[i, j + 5, None], j[:, None].float()), 1)
             i, j = (x[:, 6:] > conf_thres).nonzero(as_tuple=False).T
             # REVIEW: add rad to x
-            # x = torch.cat((box[i], x[i, j + 6, None], j[:, None].float()), 1)
-            x = torch.cat((box[i], rad[i], x[i, j + 6, None], j[:, None].float()), 1)
+            # x = torch.cat((box[i], x[i, j + 5, None], j[:, None].float()), 1)
+            x = torch.cat((box[i], x[i, j + 6, None], j[:, None].float()), 1)
         else:  # best class only
             # REVIEW: change index
             # conf, j = x[:, 5:].max(1, keepdim=True)
@@ -859,7 +866,7 @@ def rotate_non_max_suppression(prediction, conf_thres=0.1, iou_thres=0.6, classe
 
             # REVIEW: cat radian
             # x = torch.cat((box, conf, j.float()), 1)[conf.view(-1) > conf_thres]
-            x = torch.cat((box, rad, conf, j.float()), 1)[conf.view(-1) > conf_thres]
+            x = torch.cat((box, conf, j.float()), 1)[conf.view(-1) > conf_thres]
 
         # Filter by class
         if classes is not None:
@@ -892,7 +899,8 @@ def rotate_non_max_suppression(prediction, conf_thres=0.1, iou_thres=0.6, classe
         # REVIEW: add xywhrad conversion
         boxes4nms = boxes.clone()
         boxes4nms[:, 1] = -boxes[:, 1]
-        # boxes4nms[:, 4] = torch.where(boxes4nms[:, 4]-0.25<0, (boxes4nms[:, 4]-0.25+1)*math.pi*2, (boxes4nms[:, 4]-0.25)*math.pi*2)
+        boxes4nms[:, 4] = boxes4nms[:, 4]*math.pi*2
+        boxes4nms[:, 4] = torch.where(boxes4nms[:, 4]-math.pi/2<0, boxes4nms[:, 4]-math.pi/2+2*math.pi, boxes4nms[:, 4]-math.pi/2)
 
         # REVIEW: add rotate_gpu_nms
         # i = torchvision.ops.nms(boxes, scores, iou_thres)  # NMS
@@ -1139,34 +1147,34 @@ def xyxy2poly(x, rad):
 
 
 def xywhrad2poly(shape, box, rad):
-	# clone box and radina
-	clone_box = box.clone().detach().cpu()
-	clone_rad = rad.clone().detach().cpu()
+    # clone box and radina
+    clone_box = box.clone().detach().cpu().float()
+    clone_rad = rad.clone().detach().cpu().float()
 
-	# get center, w, h, rad
-	center, w, h, rad = clone_box[:2].cpu(), clone_box[2].cpu(), clone_box[3].cpu(), clone_rad.cpu()*math.pi*2+math.pi/2
+    # get center, w, h, rad
+    center, w, h, rad = clone_box[:2], clone_box[2], clone_box[3], clone_rad*math.pi*2+math.pi/2
 
-	# denormalized center and w, h
-	center[0] *= shape
-	center[1] *= shape
-	w *= shape
-	h *= shape
+    # denormalized center and w, h
+    center[0] *= shape
+    center[1] *= shape
+    w *= shape
+    h *= shape
 
-	# calculate cos and sin to get perpendicular vectors
-	cos, sin = torch.cos(rad), torch.sin(rad)
-	vector1 = torch.Tensor([(w/2 * cos, -w/2 * sin)])
-	vector2 = torch.Tensor([(-h/2 * sin, -h/2 * cos)])
+    # calculate cos and sin to get perpendicular vectors
+    cos, sin = torch.cos(rad), torch.sin(rad)
+    vector1 = torch.Tensor([(w/2 * cos, -w/2 * sin)])
+    vector2 = torch.Tensor([(-h/2 * sin, -h/2 * cos)])
 
-	# calculate four new points
-	point1 = center + vector1 + vector2
-	point2 = center + vector1 - vector2
-	point3 = center - vector1 - vector2
-	point4 = center - vector1 + vector2
+    # calculate four new points
+    point1 = center + vector1 + vector2
+    point2 = center + vector1 - vector2
+    point3 = center - vector1 - vector2
+    point4 = center - vector1 + vector2
 
-	return np.array([(point1[0,0], point1[0,1]),
-					 (point2[0,0], point2[0,1]),
-					 (point3[0,0], point3[0,1]),
-					 (point4[0,0], point4[0,1])]).astype(int)
+    return np.array([(point1[0,0], point1[0,1]),
+    				 (point2[0,0], point2[0,1]),
+    				 (point3[0,0], point3[0,1]),
+    				 (point4[0,0], point4[0,1])]).astype(int)
 
 
 def gigj_head_offset(shape, box, rad, gi, gj):

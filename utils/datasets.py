@@ -632,9 +632,6 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                         elif 0.5 < label[5] < 1:
                             label[5] = 0.75 + (0.75-label[5])
 
-        # REVIEW: convert xywhrad to xywhhead
-        # labels = convert_target_format(labels)
-
         # REVIEW: change torch.zeros size from (nL, 6) to (nL, 7)
         # labels_out = torch.zeros((nL, 6))
         labels_out = torch.zeros((nL, 7))

@@ -19,7 +19,7 @@ import yaml
 from PIL import Image, ImageDraw, ImageFont
 from scipy.signal import butter, filtfilt
 
-from utils.general import xywh2xyxy, xyxy2xywh, single_xywh2xyxy, xyxy2poly
+from utils.general import xywh2xyxy, xywhrad2poly, xyxy2xywh, single_xywh2xyxy, xyxy2poly, xywhrad2poly
 from utils.metrics import fitness
 from utils.torch_utils import is_parallel
 
@@ -573,22 +573,34 @@ def plot_targets_and_anchors(tb_writer, model, iters, epoch, imgs, indices, targ
     tb_writer.add_image("train_batch_all_anchors.jpg", img_with_all_anchors, global_step=epoch)
     
 
-# REVIEW: plotting for pred results in test phase (hbb)
-def plot_pred_results(tb_writer, f, preds, conf_thres, img, epoch, before_nms=False, wandb=None):
+# REVIEW: plotting for pred results in test phase (obb)
+def plot_pred_results(tb_writer, f, preds, conf_thres, img, epoch, before_nms=False, shape=None, num=0):
+    img_to_draw = img
+
     for pred in preds:
         if pred[5] > conf_thres:
             box = pred[:4]
             rad = pred[4]
 
-            if before_nms:
-                box = single_xywh2xyxy(box)
-                poly = xyxy2poly(box, rad)
+            box = single_xywh2xyxy(box)
+            poly = xyxy2poly(box, rad)
 
-            if all(i >= 0.0 for i in box):
+            if poly.all() >= 0.0:
                 # box = box.unsqueeze(0)
-                print(box)
-                box = xyxy2poly(box, rad)
-                cv2.drawContours(image=img, contours=[poly], contourIdx=-1, color="red", thickness=3)
+                # NOTE: cv2.drawline
+                cv2.line(img_to_draw, poly[0], poly[1], color=(0, 0, 255), thickness=3)
+                cv2.line(img_to_draw, poly[1], poly[2], color=(0, 0, 255), thickness=3)
+                cv2.line(img_to_draw, poly[2], poly[3], color=(0, 0, 255), thickness=3)
+                cv2.line(img_to_draw, poly[3], poly[0], color=(0, 0, 255), thickness=3)
+                # NOTE: cv2.drawContours
+                # cv2.drawContours(image=img_to_draw, contours=[poly], contourIdx=-1, color=(0, 0, 255), thickness=3)
+                # NOTE: for hbb
                 # img = draw_bounding_boxes(img, box, width=1, colors="red")
 
-    tb_writer.add_image(f, img, global_step=epoch)
+    if before_nms:
+        cv2.imwrite("/home/lab602.11077009/.pipeline/11077009/yolov7r/before_nms_{0}.jpg".format(num), img_to_draw)
+    else:
+        cv2.imwrite("/home/lab602.11077009/.pipeline/11077009/yolov7r/after_nms_{0}.jpg".format(num), img_to_draw)
+
+    img_to_draw = np.array(img_to_draw)
+    # tb_writer.add_image(f, img_to_draw, global_step=epoch)

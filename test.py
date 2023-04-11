@@ -20,6 +20,7 @@ from utils.torch_utils import select_device, time_synchronized, TracedModel
 
 import copy
 import math
+import cv2
 
 
 def test(data,
@@ -120,7 +121,9 @@ def test(data,
     rand_batch = random.randint(0, len(dataloader)-1)
 
     for batch_i, (img, targets, paths, shapes) in enumerate(tqdm(dataloader, desc=s)):
-        img_to_save = img
+        # REVIEW: add copy of image
+        img_to_draw = cv2.imread(paths[0], cv2.IMREAD_UNCHANGED)
+
         img = img.to(device, non_blocking=True)
         img = img.half() if half else img.float()  # uint8 to fp16/32
         img /= 255.0  # 0 - 255 to 0.0 - 1.0
@@ -136,12 +139,6 @@ def test(data,
             out, train_out = model(img, augment=augment)  # inference and training outputs
             t0 += time_synchronized() - t
 
-            '''
-            if batch_i == 0:
-                print("len(out):" , np.array(torch.Tensor.cpu(out)).shape)
-                print("len(train_out):", np.array(torch.Tensor.cpu(out)).shape)
-            '''
-
             # Compute loss
             if compute_loss:
                 # REVIEW: change compute_loss return index from 3 to 4
@@ -154,9 +151,9 @@ def test(data,
             targets[:, 2:6] *= torch.Tensor([width, height, width, height]).to(device)  # to pixels
             lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if save_hybrid else []  # for autolabelling
 
-            # REVIEW: add plotting for outputs befrore NMS
-            # if training and batch_i == rand_batch:
-            #     plot_pred_results(tb_writer, "test/before_nms", out[0], 0.3, copy.deepcopy(img_to_save[0]), epoch, before_nms=True, wandb=wandb_logger)
+            # # REVIEW: add plotting for outputs befrore NMS
+            if training and batch_i == rand_batch:
+                plot_pred_results(tb_writer, "test/before_nms", out[0], 0.01, copy.deepcopy(img_to_draw), epoch, before_nms=True)
 
             t = time_synchronized()
 
@@ -168,9 +165,9 @@ def test(data,
 
             t1 += time_synchronized() - t
 
-        # REVIEW: add plotting for outputs after NMS
-        # if training and batch_i == rand_batch:
-        #     plot_pred_results(tb_writer, "test/after_nms", out[0], 0.3, copy.deepcopy(img_to_save[0]), epoch, before_nms=False, wandb=wandb_logger)
+        # # REVIEW: add plotting for outputs after NMS
+        if training and batch_i == rand_batch:
+            plot_pred_results(tb_writer, "test/after_nms", out[0], 0.01, copy.deepcopy(img_to_draw), epoch, before_nms=False)
 
         # Statistics per image
         for si, pred in enumerate(out):
@@ -234,16 +231,17 @@ def test(data,
                 tcls_tensor = labels[:, 0]
 
                 # target boxes
-                tbox = xywh2xyxy(labels[:, 1:5])
-                scale_coords(img[si].shape[1:], tbox, shapes[si][0], shapes[si][1])  # native-space labels
+                # tbox = xywh2xyxy(labels[:, 1:5])
+                # scale_coords(img[si].shape[1:], tbox, shapes[si][0], shapes[si][1])  # native-space labels
 
                 # REVIEW: add tbox_xywhrad
                 tbox_xywhrad = labels[:, 1:6]
                 tbox_xywhrad[:, 1:5] *= whwh
 
                 if plots:
-                    confusion_matrix.process_batch(predn, torch.cat((labels[:, 0:1], tbox), 1))
-                    # confusion_matrix.process_batch(predn, torch.cat((labels[:, 0:1], tbox_xywhrad), 1))
+                    # REVIEW: add tbox_xywhrad in process_batch
+                    # confusion_matrix.process_batch(predn, torch.cat((labels[:, 0:1], tbox), 1))
+                    confusion_matrix.process_batch(predn, torch.cat((labels[:, 0:1], tbox_xywhrad), 1))
 
                 # Per target class
                 for cls in torch.unique(tcls_tensor):
@@ -256,19 +254,19 @@ def test(data,
                     # Search for detections
                     if pi.shape[0]:
                         # REVIEW: add pred, target conversion
-                        # tbox4nms = tbox_xywhrad.clone()
-                        # tbox4nms[:, 1] = -tbox4nms[:, 1]
-                        # tbox4nms[:, 4] = tbox4nms[:, 4]*math.pi*2
-                        # tbox4nms[:, 4] = torch.where(tbox4nms[:, 4]-math.pi/2<0, tbox4nms[:, 4]-math.pi/2+2*math.pi, tbox4nms[:, 4]-math.pi/2)
-                        # pbox4nms = predn[pi, :5].clone()
-                        # pbox4nms[:, 1] = -pbox4nms[:, 1]
-                        # pbox4nms[:, 4] = pbox4nms[:, 4]*math.pi*2
-                        # pbox4nms[:, 4] = torch.where(pbox4nms[:, 4]-math.pi/2<0, pbox4nms[:, 4]-math.pi/2+2*math.pi, pbox4nms[:, 4]-math.pi/2)
+                        tbox4nms = tbox_xywhrad.clone()
+                        tbox4nms[:, 1] = -tbox4nms[:, 1]
+                        tbox4nms[:, 4] = tbox4nms[:, 4]*math.pi*2
+                        tbox4nms[:, 4] = torch.where(tbox4nms[:, 4]-math.pi/2<0, tbox4nms[:, 4]-math.pi/2+2*math.pi, tbox4nms[:, 4]-math.pi/2)
+                        pbox4nms = predn[pi, :5].clone()
+                        pbox4nms[:, 1] = -pbox4nms[:, 1]
+                        pbox4nms[:, 4] = pbox4nms[:, 4]*math.pi*2
+                        pbox4nms[:, 4] = torch.where(pbox4nms[:, 4]-math.pi/2<0, pbox4nms[:, 4]-math.pi/2+2*math.pi, pbox4nms[:, 4]-math.pi/2)
 
                         # Prediction to target ious
                         # REVIEW: add rotation iou
-                        ious, i = box_iou(predn[pi, :4], tbox[ti]).max(1)  # best ious, indices
-                        # ious, i = r_box_iou(pbox4nms, tbox4nms[ti], useGPU=True).max(1)
+                        # ious, i = box_iou(predn[pi, :4], tbox[ti]).max(1)  # best ious, indices
+                        ious, i = r_box_iou(pbox4nms, tbox4nms[ti], useGPU=True).max(1)
 
                         # Append detections
                         detected_set = set()
