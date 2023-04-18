@@ -19,7 +19,7 @@ import yaml
 from PIL import Image, ImageDraw, ImageFont
 from scipy.signal import butter, filtfilt
 
-from utils.general import xywh2xyxy, xywhrad2poly, xyxy2xywh, single_xywh2xyxy, xyxy2poly, xywhrad2poly
+from utils.general import xywh2xyxy, single_xywhrad2poly, xyxy2xywh, single_xywh2xyxy, single_xyxy2poly, single_xywhrad2poly, xywhrad2poly
 from utils.metrics import fitness
 from utils.torch_utils import is_parallel
 
@@ -59,7 +59,7 @@ def butter_lowpass_filtfilt(data, cutoff=1500, fs=50000, order=5):
     return filtfilt(b, a, data)  # forward-backward filter
 
 
-def plot_one_box(x, img, rad, color=None, label=None, line_thickness=3):
+def plot_one_box(x, img, color=None, label=None, line_thickness=3):
     # Plots one bounding box on image img
     tl = line_thickness or round(0.002 * (img.shape[0] + img.shape[1]) / 2) + 1  # line/font thickness
     color = color or [random.randint(0, 255) for _ in range(3)]
@@ -67,11 +67,18 @@ def plot_one_box(x, img, rad, color=None, label=None, line_thickness=3):
     # c1, c2 = (int(x[0]), int(x[1])), (int(x[2]), int(x[3]))
 
     # REVIEW: change x1, y1, x2, y2 to x1, y1, x2, y2..., x4, y4
-    poly = xyxy2poly(x, rad)
+    print(x)
+    # print(img.shape[1], img.shape[0])
+    poly = single_xywhrad2poly(640, 640, x, denormalize=False)
+    # print(poly)
     c1 = poly[1]
 
     # REVIEW: change draw rectangle to contours
-    cv2.drawContours(image=img, contours=[poly], contourIdx=-1, color=color, thickness=tl)
+    cv2.line(img, poly[0], poly[1], color, tl, cv2.LINE_AA)
+    cv2.line(img, poly[1], poly[2], color, tl, cv2.LINE_AA)
+    cv2.line(img, poly[2], poly[3], color, tl, cv2.LINE_AA)
+    cv2.line(img, poly[3], poly[0], color, tl, cv2.LINE_AA)
+    # cv2.drawContours(image=img, contours=[poly], contourIdx=-1, color=color, thickness=tl)
     # cv2.rectangle(img, c1, c2, color, thickness=tl, lineType=cv2.LINE_AA)
 
     if label:
@@ -169,7 +176,12 @@ def plot_images(images, targets, paths=None, fname='images.jpg', names=None, max
         mosaic[block_y:block_y + h, block_x:block_x + w, :] = img
         if len(targets) > 0:
             image_targets = targets[targets[:, 0] == i]
-            boxes = xywh2xyxy(image_targets[:, 2:6]).T
+            # REVIEW: remove wrong xywh2xyxy
+            # boxes = xywh2xyxy(image_targets[:, 2:6]).T
+            boxes = image_targets[:, 2:7]
+            # print(paths[i], boxes)
+            # if paths[i] == "/home/lab602.11077009/.pipeline/11077009/yolov7r/data/HRSC2016/obb/train/100000887.bmp":
+            #     print(boxes)
             classes = image_targets[:, 1].astype('int')
 
             # REVIEW: change labels condition from 6 to 7
@@ -180,18 +192,20 @@ def plot_images(images, targets, paths=None, fname='images.jpg', names=None, max
             # conf = None if labels else image_targets[:, 6]  # check for confidence presence (label vs pred)
             conf = None if labels else image_targets[:, 7]  # check for confidence presence (label vs pred)
 
-            # REVIEW: add radian for drawing
-            rad = image_targets[:, 6]
-
+            # REVIEW: add my own conversion
             if boxes.shape[1]:
-                if boxes.max() <= 1.01:  # if normalized with tolerance 0.01
-                    boxes[[0, 2]] *= w  # scale to pixels
-                    boxes[[1, 3]] *= h
-                elif scale_factor < 1:  # absolute coords need scale if image scales
-                    boxes *= scale_factor
-            boxes[[0, 2]] += block_x
-            boxes[[1, 3]] += block_y
-            for j, box in enumerate(boxes.T):
+                boxes[:, [0, 2]] *= w
+                boxes[:, [0]] += block_x
+                boxes[:, [1, 3]] *= h
+                boxes[:, [1]] += block_y
+            #     # if boxes.max() <= 1.01:  # if normalized with tolerance 0.01
+            #         boxes[[0, 2]] *= w  # scale to pixels
+            #         boxes[[1, 3]] *= h
+            #     elif scale_factor < 1:  # absolute coords need scale if image scales
+            #         boxes *= scale_factor
+            # boxes[[0, 2]] += block_x
+            # boxes[[1, 3]] += block_y
+            for j, box in enumerate(boxes):
                 cls = int(classes[j])
                 color = colors[cls % len(colors)]
                 cls = names[cls] if names else cls
@@ -202,7 +216,7 @@ def plot_images(images, targets, paths=None, fname='images.jpg', names=None, max
                     # print(Path(paths[i]).name[:40], image_targets[j])
                     label += " " + str(image_targets[j, 6])[:4]
 
-                    plot_one_box(box, mosaic, label=label, color=color, line_thickness=tl, rad=rad[j])
+                    plot_one_box(box, mosaic, label=label, color=color, line_thickness=tl)
 
         # Draw image filename labels
         if paths:
@@ -531,46 +545,53 @@ def plot_skeleton_kpts(im, kpts, steps, orig_shape=None):
         cv2.line(im, pos1, pos2, (int(r), int(g), int(b)), thickness=2)
 
 # REVIEW: function for plotting targets and anchor in training phase (hbb)
-def plot_targets_and_anchors(tb_writer, model, iters, epoch, imgs, indices, targets, anchors, gjs, gis, offsets):
-    yolo_layer_list = model.yolo_layers
+def plot_targets_and_anchors(tb_writer, model, iters, epoch, cv_imgs, indices, tbox, trad, anchors, offsets):
     anchor_stride_list = model.stride
-    all_anchors_filename = str(tb_writer.log_dir + "/train_batch{}_all_anchors.jpg".format(iters))
 
-    for img_id, img in enumerate(imgs):
+    for img_id, img in enumerate(cv_imgs):
         img_with_all_anchors = copy.deepcopy(img)
 
         for i, anchor_stride in enumerate(anchor_stride_list):
             img_with_one_anchor = copy.deepcopy(img)
-            b, a, gj, gi = indices[i][:-1]
-            yolo_layer_anchor_filename = str(tb_writer.log_dir + "/train_batch{}_layer{}_anchors.jpg".format(iters, i))
+            b, a, gj, gi = indices[i]
 
-            for tbox_id, (box, anchor_wh, offset) in enumerate(zip(targets[i], anchors[i], offsets[i])):
+            for tbox_id, (box, anchor_wh, offset, rad) in enumerate(zip(tbox[i], anchors[i], offsets[i], trad[i])):
                 if b[tbox_id] == img_id:
                     box_to_cpu = box.cpu()
-                    x, y, w, h = box_to_cpu[2], box_to_cpu[3], anchor_wh.cpu()[0], anchor_wh.cpu()[1]
-                    x = (x+gis[i][tbox_id]-offset[0])*anchor_stride
-                    y = (y+gjs[i][tbox_id]-offset[1])*anchor_stride
-                    print("--------------------------------------------")
+                    # print(gi.shape, offset.shape)
+                    x, y, w, h = box_to_cpu[0], box_to_cpu[1], anchor_wh.cpu()[0], anchor_wh.cpu()[1]
+                    x = (x+gi[tbox_id]-offset[0])*anchor_stride
+                    y = (y+gj[tbox_id]-offset[1])*anchor_stride
+                    # print("--------------------------------------------")
                     # print("x, y, w, h:", x, y, w, h)
-                    print("x, y, w*anchor_stride, h*anchor_stride:", x, y, w*anchor_stride, h*anchor_stride)
-                    draw_box = single_xywh2xyxy(torch.stack((x, y, w, h)).cpu())
-                    print(draw_box)
+                    # print("x, y, w*anchor_stride, h*anchor_stride:", x, y, w*anchor_stride, h*anchor_stride)
+                    box = torch.stack((x.cpu(), y.cpu(), w, h))
+                    print("xywh:", box)
+                    box = single_xywh2xyxy(box)
+                    print("xyxy:", box)
+                    poly = single_xyxy2poly(box, rad)
+                    print("poly:", poly)
 
-                    if i == 0:   color = "red"
-                    elif i == 1: color = "blue"
-                    elif i == 2: color = "green"
+                    if i == 0:   color = (255, 0, 0)
+                    elif i == 1: color = (0, 255, 0)
+                    elif i == 2: color = (0, 0, 255)
                     
-                    if all(i >= 0.0 for i in draw_box):
-                        draw_box = draw_box.unsqueeze(0)
-                        img_with_all_anchors = draw_bounding_boxes(img_with_all_anchors, draw_box, width=1, colors=color)
+                    # draw_box = draw_box.unsqueeze(0)
+                    cv2.line(img_with_one_anchor, poly[0], poly[1], color, 1, cv2.LINE_AA)
+                    cv2.line(img_with_one_anchor, poly[1], poly[2], color, 1, cv2.LINE_AA)
+                    cv2.line(img_with_one_anchor, poly[2], poly[3], color, 1, cv2.LINE_AA)
+                    cv2.line(img_with_one_anchor, poly[3], poly[0], color, 1, cv2.LINE_AA)
 
-                    # cv2.rectangle(np.array(img_with_one_anchor.cpu()), (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (255, 0, 0), thickness)
-                    # cv2.rectangle(np.array(img_with_all_anchors.cpu()), (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (255, 0, 0), thickness)
+                    cv2.line(img_with_all_anchors, poly[0], poly[1], color, 1, cv2.LINE_AA)
+                    cv2.line(img_with_all_anchors, poly[1], poly[2], color, 1, cv2.LINE_AA)
+                    cv2.line(img_with_all_anchors, poly[2], poly[3], color, 1, cv2.LINE_AA)
+                    cv2.line(img_with_all_anchors, poly[3], poly[0], color, 1, cv2.LINE_AA)
+
             
             # cv2.imwrite(yolo_layer_anchor_filename, np.array(img_with_one_anchor.cpu()))
 
     # if iters == 0: cv2.imwrite(all_anchors_filename, np.array(img_with_all_anchors.cpu()))
-    tb_writer.add_image("train_batch_all_anchors.jpg", img_with_all_anchors, global_step=epoch)
+    tb_writer.add_image("train_batch_all_anchors.jpg", img_with_all_anchors, dataformats="HWC", global_step=epoch)
     
 
 # REVIEW: plotting for pred results in test phase (obb)
@@ -583,24 +604,23 @@ def plot_pred_results(tb_writer, f, preds, conf_thres, img, epoch, before_nms=Fa
             rad = pred[4]
 
             box = single_xywh2xyxy(box)
-            poly = xyxy2poly(box, rad)
+            poly = single_xyxy2poly(box, rad)
 
             if poly.all() >= 0.0:
                 # box = box.unsqueeze(0)
                 # NOTE: cv2.drawline
-                cv2.line(img_to_draw, poly[0], poly[1], color=(0, 0, 255), thickness=3)
-                cv2.line(img_to_draw, poly[1], poly[2], color=(0, 0, 255), thickness=3)
-                cv2.line(img_to_draw, poly[2], poly[3], color=(0, 0, 255), thickness=3)
-                cv2.line(img_to_draw, poly[3], poly[0], color=(0, 0, 255), thickness=3)
+                cv2.line(img_to_draw, poly[0], poly[1], (255, 0, 0), 1, cv2.LINE_AA)
+                cv2.line(img_to_draw, poly[1], poly[2], (255, 0, 0), 1, cv2.LINE_AA)
+                cv2.line(img_to_draw, poly[2], poly[3], (255, 0, 0), 1, cv2.LINE_AA)
+                cv2.line(img_to_draw, poly[3], poly[0], (255, 0, 0), 1, cv2.LINE_AA)
                 # NOTE: cv2.drawContours
                 # cv2.drawContours(image=img_to_draw, contours=[poly], contourIdx=-1, color=(0, 0, 255), thickness=3)
                 # NOTE: for hbb
                 # img = draw_bounding_boxes(img, box, width=1, colors="red")
 
     if before_nms:
-        cv2.imwrite("/home/lab602.11077009/.pipeline/11077009/yolov7r/before_nms_{0}.jpg".format(num), img_to_draw)
+        cv2.imwrite("/home/lab602.11077009/.pipeline/11077009/yolov7r/before_nms_{}.jpg".format(num), img_to_draw)
     else:
-        cv2.imwrite("/home/lab602.11077009/.pipeline/11077009/yolov7r/after_nms_{0}.jpg".format(num), img_to_draw)
+        cv2.imwrite("/home/lab602.11077009/.pipeline/11077009/yolov7r/after_nms_{}.jpg".format(num), img_to_draw)
 
-    img_to_draw = np.array(img_to_draw)
-    # tb_writer.add_image(f, img_to_draw, global_step=epoch)
+    tb_writer.add_image(f, img_to_draw, dataformats="HWC", global_step=epoch)

@@ -1125,7 +1125,7 @@ def single_xywh2xyxy(x):
     y[3] = x[1] + x[3] / 2  # bottom right y
     return y
 
-def xyxy2poly(x, rad):
+def single_xyxy2poly(x, rad):
 	# Convert box from [x1, y1, x2, y2, rad] to [x1, y1, x2, y2, ..., x4, y4]
 	# get center, w, h, rad
 	center = torch.Tensor([(x[0]+x[2])/2,(x[1]+x[3])/2]) 
@@ -1146,24 +1146,37 @@ def xyxy2poly(x, rad):
 					(point4[0,0], point4[0,1])]).astype(int)
 
 
-def xywhrad2poly(shape, box, rad):
-    # clone box and radina
-    clone_box = box.clone().detach().cpu().float()
-    clone_rad = rad.clone().detach().cpu().float()
+def single_xywhrad2poly(width, height, box, denormalize=True):
+    if isinstance(box, torch.Tensor):
+        my_sin = torch.sin
+        my_cos = torch.cos
+        # x = x.double()  # 之前不加沒事，現在不加會突然出現奇怪的overflow error
+        clone_box = box.clone()
+    elif isinstance(box, np.ndarray):
+        my_sin = np.sin
+        my_cos = np.cos
+        # box = box.astype(np.float64)  # 之前不加沒事，現在不加會突然出現奇怪的overflow error
+        clone_box = np.copy(box)
 
     # get center, w, h, rad
-    center, w, h, rad = clone_box[:2], clone_box[2], clone_box[3], clone_rad*math.pi*2+math.pi/2
+    center, w, h, rad = clone_box[:2], clone_box[2], clone_box[3], clone_box[4]*math.pi*2+math.pi/2
 
     # denormalized center and w, h
-    center[0] *= shape
-    center[1] *= shape
-    w *= shape
-    h *= shape
+    if denormalize:
+        center[0] *= width
+        center[1] *= height
+        w *= width
+        h *= height
 
     # calculate cos and sin to get perpendicular vectors
-    cos, sin = torch.cos(rad), torch.sin(rad)
-    vector1 = torch.Tensor([(w/2 * cos, -w/2 * sin)])
-    vector2 = torch.Tensor([(-h/2 * sin, -h/2 * cos)])
+    cos, sin = my_cos(rad), my_sin(rad)
+
+    if isinstance(box, torch.Tensor):
+        vector1 = torch.Tensor([(w/2 * cos, -w/2 * sin)])
+        vector2 = torch.Tensor([(-h/2 * sin, -h/2 * cos)])
+    elif isinstance(box, np.ndarray):
+        vector1 = np.array([(w/2 * cos, -w/2 * sin)])
+        vector2 = np.array([(-h/2 * sin, -h/2 * cos)])
 
     # calculate four new points
     point1 = center + vector1 + vector2
@@ -1177,17 +1190,72 @@ def xywhrad2poly(shape, box, rad):
     				 (point4[0,0], point4[0,1])]).astype(int)
 
 
-def gigj_head_offset(shape, box, rad, gi, gj):
-	offsets = []
-	for i in range(len(box)):
-		polys = xywhrad2poly(shape, box[i], rad[i])
-		heads = ((polys[1] + polys[2])/2).astype(int)
-		offsets.append(math.dist([gi[i].cpu().item(), gj[i].cpu().item()], heads)/shape)
+def multiple_xywhrad2poly(width, height, box):
+    if isinstance(box, torch.Tensor):
+        clone_box = box.clone().detach().cpu.float()
+        cos = torch.cos
+        sin = torch.sin
+    else:
+        clone_box = np.copy(box)
+        cos = np.cos
+        sin = np.sin
 
-	return torch.FloatTensor(offsets)
+    # get center, w, h, rad
+    center, w, h, rad = clone_box[:, :2], clone_box[:, 2], clone_box[:, 3], clone_box[:, 4]*math.pi*2+math.pi/2
+
+    # denormalized center and w, h
+    center[:, 0] *= width
+    center[:, 1] *= height
+    w *= width
+    h *= height
+
+    # calculate cos and sin to get perpendicular vectors
+    cos, sin = torch.cos(rad[0]), torch.sin(rad[0])
+    vector1 = torch.Tensor([(w[0]/2 * cos, -w[0]/2 * sin)])
+    vector2 = torch.Tensor([(-h[0]/2 * sin, -h[0]/2 * cos)])
+
+    point1 = center[0] + vector1 + vector2
+    point2 = center[0] + vector1 - vector2
+    point3 = center[0] - vector1 - vector2
+    point4 = center[0] - vector1 + vector2
+    # print(point1, point2, point3, point4)
+
+    output = np.array(np.array([[(point1[0, 0], point1[0, 1]),
+                                 (point2[0, 0], point2[0, 1]),
+    				             (point3[0, 0], point3[0, 1]),
+    				             (point4[0, 0], point4[0, 1])]]).astype(int))
+
+    # calculate four new points and append
+    for i in range(1, len(box)):
+        cos, sin = torch.cos(rad[i]), torch.sin(rad[i])
+        vector1 = torch.Tensor([(w[i]/2 * cos, -w[i]/2 * sin)])
+        vector2 = torch.Tensor([(-h[i]/2 * sin, -h[i]/2 * cos)])
+
+        point1 = center[i] + vector1 + vector2
+        point2 = center[i] + vector1 - vector2
+        point3 = center[i] - vector1 - vector2
+        point4 = center[i] - vector1 + vector2
+
+        output = np.append(output,
+                           np.array([[(point1[0, 0], point1[0, 1]),
+    				                  (point2[0, 0], point2[0, 1]),
+    				                  (point3[0, 0], point3[0, 1]),
+    				                  (point4[0, 0], point4[0, 1])]]).astype(int),
+                           axis=0)
+    return output
 
 
-def xywhtheta24xy_new(x):
+# def gigj_head_offset(shape, box, rad, gi, gj):
+# 	offsets = []
+# 	for i in range(len(box)):
+# 		polys = xywhrad2poly(shape, box[i], rad[i])
+# 		heads = ((polys[1] + polys[2])/2).astype(int)
+# 		offsets.append(math.dist([gi[i].cpu().item(), gj[i].cpu().item()], heads)/shape)
+
+# 	return torch.FloatTensor(offsets)
+
+
+def xywhrad2poly(x):
     """
     numpy ndarray
     dtype float32
@@ -1213,7 +1281,8 @@ def xywhtheta24xy_new(x):
     r = (x[:,2]*x[:,2]+x[:,3]*x[:,3])**0.5/2.0
     # 中心點到第一點的向量與中心點到頭中點的向量角度會小於90度所以不用再判斷值是否小於0
 
-    diff_radian = my_atan2((x[:,2]/2),(x[:,3]/2))
+    # diff_radian = my_atan2((x[:,2]/2),(x[:,3]/2))
+    diff_radian = my_atan2((x[:, 2]/2), (x[:, 3]/2))
 
     # 先將矩形平躺到x軸上0度位置，找出四個角點
     p1x, p1y = r*my_cos(diff_radian)+x[:,0], -r*my_sin(diff_radian)+x[:,1]
@@ -1223,7 +1292,7 @@ def xywhtheta24xy_new(x):
 
     # 三角函數是在平面直角座標系上計算角度為逆時針，但直接將角度放在影像座標系時，
     # 因為y軸相反所以會變成順時針，為了使旋轉角正確用2pi減掉原本角度
-    r_angle = 2*math.pi-x[:,4]
+    r_angle = (1-x[:, 4])*2*math.pi
     # print('r_angle', r_angle)
     #TODO 將公式改為矩陣運算
     # 透過旋轉公式將平躺的矩形旋轉到原來位置，以求得新的四個角點
@@ -1243,3 +1312,10 @@ def xywhtheta24xy_new(x):
     else:
         print('No supported type')
         exit(0)
+
+
+def poly2xywh(poly):
+    xy = (poly[:, [0, 1]]+poly[:, [4, 5]])/2
+    wh = ((poly[:, [2, 4]]-poly[:, [0, 2]])**2+(poly[:, [3, 5]]-poly[:, [1, 3]])**2)**0.5
+    return np.concatenate((xy, wh), axis=1)
+

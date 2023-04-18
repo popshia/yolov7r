@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from utils.general import bbox_iou, bbox_alpha_iou, box_iou, box_giou, box_diou, box_ciou, xywh2xyxy, gigj_head_offset
+from utils.general import bbox_iou, bbox_alpha_iou, box_iou, box_giou, box_diou, box_ciou, xywh2xyxy
 from utils.torch_utils import is_parallel
 
 from utils.plots import plot_targets_and_anchors
@@ -456,13 +456,17 @@ class ComputeLoss:
         for k in 'na', 'nc', 'nl', 'anchors':
             setattr(self, k, getattr(det, k))
 
-    def __call__(self, p, targets, loss_terms):  # predictions, targets, model
+    def __call__(self, p, targets, loss_terms, model, epoch=-1, tb_writer=None, cv_imgs=None):  # predictions, targets, model
         device = targets.device
         # REVIEW: add lrad
         # lcls, lbox, lobj = torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device)
         lcls, lbox, lobj, lrad = torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device)
 
-        tcls, tbox, trad, indices, anchors = self.build_targets(p, targets)  # targets
+        tcls, tbox, trad, indices, anchors, offsets = self.build_targets(p, targets)  # targets
+
+        # FIXME: plotting coordinates are wrong
+        # if tb_writer and num_iter == 0:
+            # plot_targets_and_anchors(tb_writer, model, num_iter, epoch, cv_imgs, indices, tbox, trad, anchors, offsets)
 
         # Losses
         for i, pi in enumerate(p):  # layer index, layer predictions
@@ -489,13 +493,10 @@ class ComputeLoss:
                 elif loss_terms.find('r') != -1:
                     tbox_convert = tbox[i].clone()
                     tbox_convert[:, 1] = -tbox[i][:, 1]
-                    # FIXME: radian conversion???
-                    # trad_convert = trad[i]
                     trad_convert = trad[i]*math.pi*2
                     trad_convert = torch.where(trad_convert-math.pi/2<0, trad_convert-math.pi/2+2*math.pi, trad_convert-math.pi/2)
                     pbox_convert = pbox.clone()
                     pbox_convert[:, 1] = -pbox[:, 1]
-                    # prad_convert = prad
                     prad_convert = prad*math.pi*2
                     prad_convert = torch.where(prad_convert-math.pi/2<0, prad_convert-math.pi/2+2*math.pi, prad_convert-math.pi/2)
 
@@ -570,7 +571,7 @@ class ComputeLoss:
 
         # REVIEW: add trad
         # tcls, tbox, indices, anch = [], [], [], []
-        tcls, tbox, trad, indices, anch = [], [], [], [], []
+        tcls, tbox, trad, indices, anch, offsets_list = [], [], [], [], [], []
 
         # REVIEW: change gain size from 7 to 8
         # gain = torch.ones(7, device=targets.device).long()  # normalized to gridspace gain
@@ -628,12 +629,13 @@ class ComputeLoss:
             anch.append(anchors[a])  # anchors
             tcls.append(c)  # class
 
-            # REVIEW: append trad
+            # REVIEW: append trad and offsets
             trad.append(grad)
+            offsets_list.append(offsets)
 
         # TODO: add return trad
         # return tcls, tbox, indices, anch
-        return tcls, tbox, trad, indices, anch
+        return tcls, tbox, trad, indices, anch, offsets_list
 
 
 class ComputeLossOTA:
@@ -668,7 +670,7 @@ class ComputeLossOTA:
             setattr(self, k, getattr(det, k))
 
     # REVIEW: add other needed parameters for ploting anchors
-    def __call__(self, p, targets, imgs, loss_terms):  # predictions, targets, model   
+    def __call__(self, p, targets, imgs, loss_terms, model, num_iter=-1, epoch=-1, tb_writer=None, cv_imgs=None):  # predictions, targets, model   
         device = targets.device
 
         # REVIEW: add radian loss "lrad"
@@ -718,15 +720,12 @@ class ComputeLossOTA:
                 elif loss_terms.find('r') != -1:
                     tbox_convert = selected_tbox.clone()
                     tbox_convert[:, 1] = -selected_tbox[:, 1]
-                    # FIXME: radian conversion???
-                    # trad_convert = trad
                     trad_convert = trad*math.pi*2
                     trad_convert = torch.where(trad_convert-math.pi/2<0, trad_convert-math.pi/2+2*math.pi, trad_convert-math.pi/2)
                     pbox_convert = pbox.clone()
                     pbox_convert[:, 1] = -pbox[:, 1]
-                    # prad_convert = prad
                     prad_convert = prad*math.pi*2
-                    trad_convert = torch.where(prad_convert-math.pi/2<0, prad_convert-math.pi/2+2*math.pi, prad_convert-math.pi/2)
+                    prad_convert = torch.where(prad_convert-math.pi/2<0, prad_convert-math.pi/2+2*math.pi, prad_convert-math.pi/2)
 
                     txywhrad = torch.cat((tbox_convert, trad_convert.view(-1, 1)), dim=1).unsqueeze(0)
                     pxywhrad = torch.cat((pbox_convert, prad_convert.view(-1, 1)), dim=1).unsqueeze(0)

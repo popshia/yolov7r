@@ -341,7 +341,7 @@ def train(hyp, opt, device, tb_writer=None):
         if rank in [-1, 0]:
             pbar = tqdm(pbar, total=nb)  # progress bar
         optimizer.zero_grad()
-        for i, (imgs, targets, paths, _) in pbar:  # batch -------------------------------------------------------------
+        for i, (imgs, targets, paths, _, cv_imgs) in pbar:  # batch -------------------------------------------------------------
             ni = i + nb * epoch  # number integrated batches (since train start)
             # REVIEW: add img_to_plot_anchor to plot
             imgs_to_plot_anchor = imgs
@@ -372,10 +372,10 @@ def train(hyp, opt, device, tb_writer=None):
                 pred = model(imgs)  # forward
                 if 'loss_ota' not in hyp or hyp['loss_ota'] == 1:
                     # REVIEW: add loss_term in compute loss
-                    loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs, opt.loss_terms)  # loss scaled by batch_size
+                    loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs, opt.loss_terms, model, epoch, tb_writer, cv_imgs)  # loss scaled by batch_size
                 else:
                     # REVIEW: add loss_term in compute loss
-                    loss, loss_items = compute_loss(pred, targets.to(device), imgs, opt.loss_terms)  # loss scaled by batch_size
+                    loss, loss_items = compute_loss(pred, targets.to(device), opt.loss_terms, model, epoch, tb_writer, cv_imgs)  # loss scaled by batch_size
                 if rank != -1:
                     loss *= opt.world_size  # gradient averaged between devices in DDP mode
                 if opt.quad:

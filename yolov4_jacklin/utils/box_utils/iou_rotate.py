@@ -55,9 +55,9 @@ def iou_rotate_calculate1(boxes1, boxes2, use_gpu=False, gpu_id=0):
             temp_ious = []
             """Rotated bounding box code"""
             # change angle from radian to degree
-            r1 = ((box1[0], box1[1]), (box1[2], box1[3]), box1[4]*180/math.pi)
+            r1 = ((box1[0], box1[1]), (box1[2], box1[3]), box1[4]*360/math.pi)
             for j, box2 in enumerate(boxes2):
-                r2 = ((box2[0], box2[1]), (box2[2], box2[3]), box2[4]*180/math.pi)
+                r2 = ((box2[0], box2[1]), (box2[2], box2[3]), box2[4]*360/math.pi)
 
                 int_pts = cv2.rotatedRectangleIntersection(r1, r2)[1]
                 if int_pts is not None:
@@ -84,8 +84,8 @@ def iou_rotate_calculate2(boxes1, boxes2):
 
         for i in range(boxes1.shape[0]):
             temp_ious = []
-            r1 = ((boxes1[i][0], boxes1[i][1]), (boxes1[i][2], boxes1[i][3]), boxes1[i][4]*180/math.pi)
-            r2 = ((boxes2[i][0], boxes2[i][1]), (boxes2[i][2], boxes2[i][3]), boxes2[i][4]*180/math.pi)
+            r1 = ((boxes1[i][0], boxes1[i][1]), (boxes1[i][2], boxes1[i][3]), boxes1[i][4]*360/math.pi)
+            r2 = ((boxes2[i][0], boxes2[i][1]), (boxes2[i][2], boxes2[i][3]), boxes2[i][4]*360/math.pi)
 
             int_pts = cv2.rotatedRectangleIntersection(r1, r2)[1]
             if int_pts is not None:

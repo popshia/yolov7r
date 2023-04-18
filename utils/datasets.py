@@ -27,7 +27,7 @@ from torchvision.utils import save_image
 from torchvision.ops import roi_pool, roi_align, ps_roi_pool, ps_roi_align
 
 from utils.general import check_requirements, xyxy2xywh, xywh2xyxy, xywhn2xyxy, xyn2xy, segment2box, segments2boxes, \
-    resample_segments, clean_str, xywhtheta24xy_new
+    resample_segments, clean_str, xywhrad2poly, poly2xywh
 from utils.torch_utils import torch_distributed_zero_first
 
 # Parameters
@@ -541,7 +541,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
 
         hyp = self.hyp
         mosaic = self.mosaic and random.random() < hyp['mosaic']
-        # TODO: mosaic fucks up my GT radian value
+        mosaic = False
         if mosaic:
             # Load mosaic
             if random.random() < 0.8:
@@ -576,13 +576,14 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         if self.augment:
             # Augment imagespace
             if not mosaic:
-                # TODO: random perspective fucks up my GT radian values (?)
-                img, labels = random_perspective(img, labels,
-                                                 degrees=hyp['degrees'],
-                                                 translate=hyp['translate'],
-                                                 scale=hyp['scale'],
-                                                 shear=hyp['shear'],
-                                                 perspective=hyp['perspective'])
+                # REVIEW: add r_random_perspective
+                # img, labels = random_perspective(img, labels,
+                img, labels = r_random_perspective(img, labels,
+                                                   degrees=hyp['degrees'],
+                                                   translate=hyp['translate'],
+                                                   scale=hyp['scale'],
+                                                   shear=hyp['shear'],
+                                                   perspective=hyp['perspective'])
             
             
             #img, labels = self.albumentations(img, labels)
@@ -608,10 +609,16 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
 
         nL = len(labels)  # number of labels
         if nL:
-            labels[:, 1:5] = xyxy2xywh(labels[:, 1:5])  # convert xyxy to xywh
+            if self.augment:
+                # labels[:, 1:5] = xyxy2xywh(labels[:, 1:5])  # convert xyxy to xywh
+                labels_xywh = poly2xywh(labels[:, 1:9])  # convert xyxy to xywh
+                labels = np.concatenate((labels[: , 0].reshape(-1, 1), labels_xywh, labels[:, -1].reshape(-1, 1)), axis=1)
+            else:
+                labels[:, 1:5] = xyxy2xywh(labels[:, 1:5])
+
             labels[:, [2, 4]] /= img.shape[0]  # normalized height 0-1
             labels[:, [1, 3]] /= img.shape[1]  # normalized width 0-1
-
+        
         # REVIEW: fix radian value after flipping, #617 and #624-#628
         if self.augment:
             # flip up-down
@@ -638,22 +645,30 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         if nL:
             labels_out[:, 1:] = torch.from_numpy(labels)
 
+        # print(self.img_files[index])
+        # print(labels_out)
+        # if self.img_files[index] == "/home/lab602.11077009/.pipeline/11077009/yolov7r/data/HRSC2016/obb/train/100000887.bmp":
+        #     print(labels_out)
+
+        # REVIEW: add cv_img
+        cv_img = img.copy()
+
         # Convert
         img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, to 3x416x416
         img = np.ascontiguousarray(img)
 
-        return torch.from_numpy(img), labels_out, self.img_files[index], shapes
+        return torch.from_numpy(img), labels_out, self.img_files[index], shapes, cv_img
 
     @staticmethod
     def collate_fn(batch):
-        img, label, path, shapes = zip(*batch)  # transposed
+        img, label, path, shapes, cv_img = zip(*batch)  # transposed
         for i, l in enumerate(label):
             l[:, 0] = i  # add target image index for build_targets()
-        return torch.stack(img, 0), torch.cat(label, 0), path, shapes
+        return torch.stack(img, 0), torch.cat(label, 0), path, shapes, np.asarray(cv_img)
 
     @staticmethod
     def collate_fn4(batch):
-        img, label, path, shapes = zip(*batch)  # transposed
+        img, label, path, shapes, cv_img = zip(*batch)  # transposed
         n = len(shapes) // 4
         img4, label4, path4, shapes4 = [], [], path[:n], shapes[:n]
 
@@ -675,7 +690,8 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         for i, l in enumerate(label4):
             l[:, 0] = i  # add target image index for build_targets()
 
-        return torch.stack(img4, 0), torch.cat(label4, 0), path4, shapes4
+        return torch.stack(img4, 0), torch.cat(label4, 0), path4, shapes4, np.asarray(cv_img)
+
 
 
 # Ancillary functions --------------------------------------------------------------------------------------------------
@@ -771,7 +787,7 @@ def load_mosaic(self, index):
     #img4, labels4, segments4 = remove_background(img4, labels4, segments4)
     #sample_segments(img4, labels4, segments4, probability=self.hyp['copy_paste'])
     img4, labels4, segments4 = copy_paste(img4, labels4, segments4, probability=self.hyp['copy_paste'])
-    img4, labels4 = random_perspective(img4, labels4, segments4,
+    img4, labels4 = r_random_perspective(img4, labels4, segments4,
                                        degrees=self.hyp['degrees'],
                                        translate=self.hyp['translate'],
                                        scale=self.hyp['scale'],
@@ -849,7 +865,7 @@ def load_mosaic9(self, index):
     # Augment
     #img9, labels9, segments9 = remove_background(img9, labels9, segments9)
     img9, labels9, segments9 = copy_paste(img9, labels9, segments9, probability=self.hyp['copy_paste'])
-    img9, labels9 = random_perspective(img9, labels9, segments9,
+    img9, labels9 = r_random_perspective(img9, labels9, segments9,
                                        degrees=self.hyp['degrees'],
                                        translate=self.hyp['translate'],
                                        scale=self.hyp['scale'],
@@ -1034,8 +1050,7 @@ def letterbox(img, new_shape=(640, 640), color=(114, 114, 114), auto=True, scale
     return img, ratio, (dw, dh)
 
 
-def random_perspective(img, targets=(), segments=(), degrees=10, translate=.1, scale=.1, shear=10, perspective=0.0,
-                       border=(0, 0)):
+def random_perspective(img, targets=(), segments=(), degrees=10, translate=.1, scale=.1, shear=10, perspective=0.0, border=(0, 0)):
     # torchvision.transforms.RandomAffine(degrees=(-10, 10), translate=(.1, .1), scale=(.9, 1.1), shear=(-10, 10))
     # targets = [cls, xyxy]
 
@@ -1123,12 +1138,137 @@ def random_perspective(img, targets=(), segments=(), degrees=10, translate=.1, s
     return img, targets
 
 
+def r_random_perspective(img, targets=(), segments=(), degrees=10, translate=.1, scale=.1, shear=10, perspective=0.0, border=(0, 0)):
+    # torchvision.transforms.RandomAffine(degrees=(-10, 10), translate=(.1, .1), scale=(.9, 1.1), shear=(-10, 10))
+    # targets = [cls, xyxy]
+
+    height = img.shape[0] + border[0] * 2  # shape(h,w,c)
+    width = img.shape[1] + border[1] * 2
+
+    # Center
+    C = np.eye(3)
+    C[0, 2] = -img.shape[1] / 2  # x translation (pixels)
+    C[1, 2] = -img.shape[0] / 2  # y translation (pixels)
+
+    # Perspective
+    P = np.eye(3)
+    P[2, 0] = random.uniform(-perspective, perspective)  # x perspective (about y)
+    P[2, 1] = random.uniform(-perspective, perspective)  # y perspective (about x)
+
+    # Rotation and Scale
+    R = np.eye(3)
+    a = random.uniform(-degrees, degrees)
+    # a += random.choice([-180, -90, 0, 90])  # add 90deg rotations to small rotations
+    s = random.uniform(1 - scale, 1.1 + scale)
+    # s = 2 ** random.uniform(-scale, scale)
+    R[:2] = cv2.getRotationMatrix2D(angle=a, center=(0, 0), scale=s)
+
+    # Shear
+    S = np.eye(3)
+    S[0, 1] = math.tan(random.uniform(-shear, shear) * math.pi / 180)  # x shear (deg)
+    S[1, 0] = math.tan(random.uniform(-shear, shear) * math.pi / 180)  # y shear (deg)
+
+    # Translation
+    T = np.eye(3)
+    T[0, 2] = random.uniform(0.5 - translate, 0.5 + translate) * width  # x translation (pixels)
+    T[1, 2] = random.uniform(0.5 - translate, 0.5 + translate) * height  # y translation (pixels)
+
+    # Combined rotation matrix
+    M = T @ S @ R @ P @ C  # order of operations (right to left) is IMPORTANT
+    if (border[0] != 0) or (border[1] != 0) or (M != np.eye(3)).any():  # image changed
+        if perspective:
+            img = cv2.warpPerspective(img, M, dsize=(width, height), borderValue=(114, 114, 114))
+        else:  # affine
+            img = cv2.warpAffine(img, M[:2], dsize=(width, height), borderValue=(114, 114, 114))
+
+    # Visualize
+    # import matplotlib.pyplot as plt
+    # ax = plt.subplots(1, 2, figsize=(12, 6))[1].ravel()
+    # ax[0].imshow(img[:, :, ::-1])  # base
+    # ax[1].imshow(img2[:, :, ::-1])  # warped
+
+    # Transform label coordinates
+    n = len(targets)
+    if n:
+        use_segments = any(x.any() for x in segments)
+        new = np.zeros((n, 4))
+        if use_segments:  # warp segments
+            segments = resample_segments(segments)  # upsample
+            for i, segment in enumerate(segments):
+                xy = np.ones((len(segment), 3))
+                xy[:, :2] = segment
+                xy = xy @ M.T  # transform
+                xy = xy[:, :2] / xy[:, 2:3] if perspective else xy[:, :2]  # perspective rescale or affine
+
+                # clip
+                new[i] = segment2box(xy, width, height)
+
+        else:  # warp boxes
+            xy = np.ones((n * 4, 3))
+            xy[:, :2] = targets[:, [1, 2, 3, 4, 1, 4, 3, 2]].reshape(n * 4, 2)  # x1y1, x2y2, x1y2, x2y1
+            xy = xy @ M.T  # transform
+            xy = (xy[:, :2] / xy[:, 2:3] if perspective else xy[:, :2]).reshape(n, 8)  # perspective rescale or affine
+
+            # REVIEW: tweak labels transformation
+            clockwise_xy = np.concatenate((xy[:, [0,1]], xy[:, [6, 7]], xy[:, [2, 3]], xy[:, [4, 5]]), axis=1)
+
+            # NOTE: (cls, x1, y1, x2, y2, ..., x4, y4, Θ)
+            targets = np.concatenate((targets[:, 0].reshape(-1, 1), clockwise_xy, targets[:, -1].reshape(-1, 1)), axis=1)
+            xy = (targets[:, [1, 2]]+targets[:, [5, 6]])/2
+            wh = ((targets[:, [3, 5]]+targets[:, [1, 3]])**2+(targets[:, [4, 6]]-targets[:, [2, 4]])**2)**0.5
+
+            # TODO: rotation conversion
+            # if targets.shape[0] and targets.shape[1] == 10:
+            #     targets[:, -1] += a*math.pi/360
+            #     targets[:, -1] = np.where(targets[:, -1]<0, math.pi*2+targets[:, -1], np.where(targets[:, -1]>=math.pi*2, targets[:, -1]-math.pi*2, targets[:, -1]))
+
+            # create new boxes
+            # x = xy[:, [0, 2, 4, 6]]
+            # y = xy[:, [1, 3, 5, 7]]
+            # new = np.concatenate((x.min(1), y.min(1), x.max(1), y.max(1))).reshape(4, n).T
+
+            # clip
+            # new[:, [0, 2]] = new[:, [0, 2]].clip(0, width)
+            # new[:, [1, 3]] = new[:, [1, 3]].clip(0, height)
+
+        # REVIEW: add r_box_candidates
+        # filter candidates
+        # i = box_candidates(box1=targets[:, 1:5].T * s, box2=new.T, area_thr=0.01 if use_segments else 0.10)
+        # targets = targets[i]
+        # targets[:, 1:5] = new[i]
+        i = r_box_candidates(box1=targets, imgw=img.shape[1], imgh=img.shape[0])
+        targets = targets[i]
+
+    return img, targets
+
 def box_candidates(box1, box2, wh_thr=2, ar_thr=20, area_thr=0.1, eps=1e-16):  # box1(4,n), box2(4,n)
     # Compute candidate boxes: box1 before augment, box2 after augment, wh_thr (pixels), aspect_ratio_thr, area_ratio
     w1, h1 = box1[2] - box1[0], box1[3] - box1[1]
     w2, h2 = box2[2] - box2[0], box2[3] - box2[1]
     ar = np.maximum(w2 / (h2 + eps), h2 / (w2 + eps))  # aspect ratio
     return (w2 > wh_thr) & (h2 > wh_thr) & (w2 * h2 / (w1 * h1 + eps) > area_thr) & (ar < ar_thr)  # candidates
+
+
+def r_box_candidates(box1, imgw, imgh):  # box1(4,n), box2(4,n)
+    # Compute candidate boxes: box1 before augment, box2 after augment, wh_thr (pixels), aspect_ratio_thr, area_ratio
+    # w1, h1 = box1[2] - box1[0], box1[3] - box1[1]
+    # w2, h2 = box2[2] - box2[0], box2[3] - box2[1]
+    # ar = np.maximum(w2 / (h2 + eps), h2 / (w2 + eps))  # aspect ratio
+    # return (w2 > wh_thr) & (h2 > wh_thr) & (w2 * h2 / (w1 * h1 + eps) > area_thr) & (ar < ar_thr)  # candidates
+
+    # NOTE: use new_targets to find head point
+    # NOTE: convert poly points (which is not align with object) into xywhrad to calculate the real poly points to find head point 
+    xy = (box1[:, [1, 2]]+box1[:, [5, 6]])/2
+    wh = ((box1[:, [3, 5]]+box1[:, [1, 3]])**2+(box1[:, [4, 6]]-box1[:, [2, 4]])**2)**0.5
+    rboxs_xywhrad = np.concatenate((xy, wh, box1[:, 9].reshape(-1, 1)), axis=1)
+    rbox_poly = xywhrad2poly(rboxs_xywhrad)
+    head_xy = (rbox_poly[:, [0, 1]]+rbox_poly[:, [2, 3]])/2
+
+    head_in_img_mask = (0<=head_xy[:, 0])&(head_xy[:, 0]<imgw)&(0<=head_xy[:, 1])&(head_xy[:, 1]<imgh)
+    corners_outside_img_mask = (((rbox_poly[:, 0::2]<0)|(rbox_poly[:, 0::2]>=imgw)) & ((rbox_poly[:, 1::2]<0) | (rbox_poly[:, 1::2]>=imgh)))[:].all(1)
+    center_in_img_mask = (0<=xy[:, 0])&(xy[:, 0]<imgw)&(0<=xy[:, 1])&(xy[:, 1]<imgh)
+
+    return head_in_img_mask & ~corners_outside_img_mask & center_in_img_mask
 
 
 def bbox_ioa(box1, box2):
@@ -1341,6 +1481,6 @@ def load_segmentations(self, index):
 
 
 def convert_target_format(targets):
-    rbox4pts = xywhtheta24xy_new(targets[:,1:])
+    rbox4pts = xywhrad2poly(targets[:,1:])
     hxy = (rbox4pts[:,[0,1]]+rbox4pts[:,[2,3]])/2
     return np.concatenate((targets[:,:-1],hxy),axis=1)
