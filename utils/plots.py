@@ -617,9 +617,9 @@ def plot_pred_results(tb_writer, f, preds, conf_thres, img, epoch, before_nms=Fa
                 # NOTE: for hbb
                 # img = draw_bounding_boxes(img, box, width=1, colors="red")
 
-    if before_nms:
-        cv2.imwrite("/home/lab602.11077009/.pipeline/11077009/yolov7r/before_nms_{}.jpg".format(num), img_to_draw)
-    else:
-        cv2.imwrite("/home/lab602.11077009/.pipeline/11077009/yolov7r/after_nms_{}.jpg".format(num), img_to_draw)
+    # if before_nms:
+    #     cv2.imwrite("/home/lab602.11077009/.pipeline/11077009/yolov7r/before_nms_{}.jpg".format(num), img_to_draw)
+    # else:
+    #     cv2.imwrite("/home/lab602.11077009/.pipeline/11077009/yolov7r/after_nms_{}.jpg".format(num), img_to_draw)
 
     tb_writer.add_image(f, img_to_draw, dataformats="HWC", global_step=epoch)
