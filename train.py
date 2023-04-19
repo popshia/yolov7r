@@ -372,10 +372,10 @@ def train(hyp, opt, device, tb_writer=None):
                 pred = model(imgs)  # forward
                 if 'loss_ota' not in hyp or hyp['loss_ota'] == 1:
                     # REVIEW: add loss_term in compute loss
-                    loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs, opt.loss_terms, model, epoch, tb_writer, cv_imgs)  # loss scaled by batch_size
+                    loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs, opt.loss_terms, model, i, epoch, tb_writer, cv_imgs)  # loss scaled by batch_size
                 else:
                     # REVIEW: add loss_term in compute loss
-                    loss, loss_items = compute_loss(pred, targets.to(device), opt.loss_terms, model, epoch, tb_writer, cv_imgs)  # loss scaled by batch_size
+                    loss, loss_items = compute_loss(pred, targets.to(device), opt.loss_terms, model, i, epoch, tb_writer, cv_imgs)  # loss scaled by batch_size
                 if rank != -1:
                     loss *= opt.world_size  # gradient averaged between devices in DDP mode
                 if opt.quad:

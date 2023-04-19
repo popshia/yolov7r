@@ -3,7 +3,6 @@
 #include <vector>
 #include <iostream>
 #include <cmath>
-#include <stdio.h>
 
 #define CUDA_CHECK(condition) \
   /* Code block avoids redefinition of cudaError_t error */ \
@@ -141,13 +140,12 @@ __device__ inline bool inrect(float pt_x, float pt_y, float * pts) {
   double adad;
   double adap;
 
-  // vector(pt1,pt2) of rect2
-  ab[0] = pts[2] - pts[0];  // pt2x-pt1x  delta_x
-  ab[1] = pts[3] - pts[1];  // pt2y-pt1y  delta_y
-  // vector(pt1,pt4) of rect2
-  ad[0] = pts[6] - pts[0];  // pt4x-pt1x  delta_x
-  ad[1] = pts[7] - pts[1];  // pt4y-pt1y  delta_y
-  // vector(pt1,pt) vector from rect2 point1 to rect1 pt
+  ab[0] = pts[2] - pts[0];
+  ab[1] = pts[3] - pts[1];
+
+  ad[0] = pts[6] - pts[0];
+  ad[1] = pts[7] - pts[1];
+
   ap[0] = pt_x - pts[0];
   ap[1] = pt_y - pts[1];
 
@@ -155,8 +153,8 @@ __device__ inline bool inrect(float pt_x, float pt_y, float * pts) {
   abap = ab[0] * ap[0] + ab[1] * ap[1];
   adad = ad[0] * ad[0] + ad[1] * ad[1];
   adap = ad[0] * ap[0] + ad[1] * ap[1];
-  //bool result = (abab - abap >=  -1) and (abap >= -1) and (adad - adap >= -1) and (adap >= -1);
-  bool result = (abab >= abap) and (abap >= 0) and (adad >= adap) and (adap >= 0);
+  bool result = (abab - abap >=  -1) and (abap >= -1) and (adad - adap >= -1) and (adap >= -1);
+  // bool result = (abab >= abap) and (abap >= 0) and (adad >= adap) and (adap >= 0);
   return result;
 }
 
@@ -165,26 +163,12 @@ __device__ inline int inter_pts(float * pts1, float * pts2, float * int_pts) {
   int num_of_inter = 0;
 
   for(int i = 0;i < 4;i++) {
-
-    //printf("anchor_pts%d_x: %f, anchor_pts%d_y: %f\n", i, pts1[2 * i], i, pts1[2 * i + 1]);
-
-    bool inrect_bool = inrect(pts1[2 * i], pts1[2 * i + 1], pts2);
-
-    //printf("Is anchor_pts%d in target_box? %d\n", i, inrect_bool);
-
-    if(inrect_bool) {
+    if(inrect(pts1[2 * i], pts1[2 * i + 1], pts2)) {
       int_pts[num_of_inter * 2] = pts1[2 * i];
       int_pts[num_of_inter * 2 + 1] = pts1[2 * i + 1];
       num_of_inter++;
     }
-
-    //printf("target_pts%d_x: %f, target_pts%d_y: %f\n", i, pts2[2 * i], i, pts2[2 * i + 1]);
-
-    inrect_bool = inrect(pts2[2 * i], pts2[2 * i + 1], pts1);
-
-    //printf("Is target_pts%d in anchor_box? %d\n", i, inrect_bool);
-
-    if(inrect_bool) {
+     if(inrect(pts2[2 * i], pts2[2 * i + 1], pts1)) {
       int_pts[num_of_inter * 2] = pts2[2 * i];
       int_pts[num_of_inter * 2 + 1] = pts2[2 * i + 1];
       num_of_inter++;
@@ -211,14 +195,9 @@ __device__ inline int inter_pts(float * pts1, float * pts2, float * int_pts) {
 __device__ inline void convert_region(float * pts , float const * const region) {
 
   float angle = region[4];
-  //printf("angle radians: %f\n", angle);
-  //printf("angle degree: %f\n", angle*180.0/3.1415926535);
-  //float a_cos = cos(angle/180.0*3.1415926535);
-  //float a_sin = sin(angle/180.0*3.1415926535);
+  float a_cos = cos(angle/180.0*3.1415926535);
+  float a_sin = sin(angle/180.0*3.1415926535);
   
-  float a_cos = cos(angle);
-  float a_sin = sin(angle);
-
   float ctr_x = region[0];
   float ctr_y = region[1];
 
@@ -241,6 +220,7 @@ __device__ inline void convert_region(float * pts , float const * const region) 
   for(int i = 0;i < 4;i++) {
     pts[7 - 2 * i - 1] = a_cos * pts_x[i] - a_sin * pts_y[i] + ctr_x;
     pts[7 - 2 * i] = a_sin * pts_x[i] + a_cos * pts_y[i] + ctr_y;
+   
   }
 
 }
@@ -256,28 +236,12 @@ __device__ inline float inter(float const * const region1, float const * const r
   convert_region(pts1, region1);
   convert_region(pts2, region2);
 
-  //printf("pts1 %f %f %f %f %f %f %f %f\n", pts1[0], pts1[1], pts1[2], pts1[3], pts1[4], pts1[5], pts1[6], pts1[7]);
-  //printf("pts2 %f %f %f %f %f %f %f %f\n", pts2[0], pts2[1], pts2[2], pts2[3], pts2[4], pts2[5], pts2[6], pts2[7]);
-
   num_of_inter = inter_pts(pts1, pts2, int_pts);
 
-  //printf("num of inter: %d\n", num_of_inter);
-
-  //printf("--int_pts--\n");
-  //printf("%f, %f, %f ,%f, %f, %f, %f ,%f, %f, %f, %f ,%f, %f, %f, %f ,%f\n", int_pts[0], int_pts[1], int_pts[2], int_pts[3], int_pts[4], int_pts[5], int_pts[6], int_pts[7], int_pts[8], int_pts[9], int_pts[10], int_pts[11], int_pts[12], int_pts[13], int_pts[14], int_pts[15]);
-  //for (int i = 0 ; i < 16 ; ++i)
-  //  printf("%f ", int_pts[i]);
-  //printf("\n");
-  
   reorder_pts(int_pts, num_of_inter);
 
-  //printf("--reorder pts--\n");
-  //printf("%f, %f, %f ,%f, %f, %f, %f ,%f, %f, %f, %f ,%f, %f, %f, %f ,%f\n", int_pts[0], int_pts[1], int_pts[2], int_pts[3], int_pts[4], int_pts[5], int_pts[6], int_pts[7], int_pts[8], int_pts[9], int_pts[10], int_pts[11], int_pts[12], int_pts[13], int_pts[14], int_pts[15]);
-  //for (int i = 0 ; i < 16 ; ++i)
-  //  printf("%f ", int_pts[i]);
-  //printf("\n");
-
   return area(int_pts, num_of_inter);
+  
   
 }
 
@@ -286,16 +250,19 @@ __device__ inline float devRotateIoU(float const * const region1, float const * 
   if((fabs(region1[0] - region2[0]) < 1e-5) && (fabs(region1[1] - region2[1]) < 1e-5) && (fabs(region1[2] - region2[2]) < 1e-5) && (fabs(region1[3] - region2[3]) < 1e-5) && (fabs(region1[4] - region2[4]) < 1e-5)) {
     return 1.0;
   }
-
+  
   float area1 = region1[2] * region1[3];
   float area2 = region2[2] * region2[3];
   float area_inter = inter(region1, region2);
-  //printf("inter: %f, a1: %f, a2: %f\n", area_inter, area1, area2);
-  float result = area_inter / (area1 + area2 - area_inter);
-  //printf("result: %f\n", result);
-  //printf("!!!!!!!!!!!!!!!!!!!\n");
-  if(result < 0) {
-    result = 0.0;
+  
+  if (region1[2] < 0.1 | region1[3] < 0.1 | region2[2] < 0.1 | region2[3] < 0.1){
+    area_inter = 0;
+  }
+
+  float result = area_inter / (area1 + area2 - area_inter + 1e-6);
+
+  if(result < 0 | result > 1) {
+    result = 0;
   }
   return result;
   
@@ -368,7 +335,7 @@ void _set_device(int device_id) {
 
 
 void _overlaps(float* overlaps,const float* boxes,const float* query_boxes, int n, int k, int device_id) {
-  
+
   _set_device(device_id);
 
   float* overlaps_dev = NULL;

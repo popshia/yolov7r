@@ -22,8 +22,8 @@ from utils.google_utils import gsutil_getsize
 from utils.metrics import fitness
 from utils.torch_utils import init_torch_seeds
 
-from utils.box_utils.rotate_polygon_nms import rotate_gpu_nms
-from utils.box_utils.iou_rotate import iou_rotate_calculate1
+from utils.box_utils_jacklin.rotate_polygon_nms import rotate_gpu_nms
+from utils.box_utils_jacklin.iou_rotate import iou_rotate_calculate1
 import math
 
 # Settings
@@ -775,8 +775,9 @@ def rotate_non_max_suppression(prediction, conf_thres=0.1, iou_thres=0.6, classe
     """Runs Rotate Non-Maximum Suppression (NMS) on inference results
 
     Returns:
-         list of detections, on (n,7) tensor per image [xyxy, rad, conf, cls]
+         list of detections, on (b,n,7) tensor per image [xyxy, rad, conf, cls]
     """
+    # NOTE: x(x, y, w, h, rad, conf, cls)
 
     # REVIEW: change prediction.shape minus from 5 to 6
     # nc = prediction.shape[2] - 5  # number of classes
@@ -846,9 +847,7 @@ def rotate_non_max_suppression(prediction, conf_thres=0.1, iou_thres=0.6, classe
         # Box (center x, center y, width, height) to (x1, y1, x2, y2)
         # box = xywh2xyxy(x[:, :4])
         box = x[:, :5]
-
-        # REVIEW: add radian
-        rad = x[:, 4:5]
+        # NOTE: box(x, y, w, h, rad)
 
         # TODO: multilabeling index fixing
         # Detections matrix nx6 (xyxy, conf, cls)
@@ -863,7 +862,6 @@ def rotate_non_max_suppression(prediction, conf_thres=0.1, iou_thres=0.6, classe
             # REVIEW: change index
             # conf, j = x[:, 5:].max(1, keepdim=True)
             conf, j = x[:, 6:].max(1, keepdim=True)
-
             # REVIEW: cat radian
             # x = torch.cat((box, conf, j.float()), 1)[conf.view(-1) > conf_thres]
             x = torch.cat((box, conf, j.float()), 1)[conf.view(-1) > conf_thres]
@@ -894,7 +892,10 @@ def rotate_non_max_suppression(prediction, conf_thres=0.1, iou_thres=0.6, classe
 
         # REVIEW: change box index and score index
         # boxes, scores = x[:, :4] + c, x[:, 4]  # boxes (offset by class), scores
-        boxes, scores = x[:, :5] + c, x[:, 5]  # boxes (offset by class), scores
+        # REVIEW: change offset from xywh to center xy only
+        boxes = x[:, :5]
+        boxes[:, :2] += c
+        scores = x[:, 5]  # boxes (offset by class), scores
 
         # REVIEW: add xywhrad conversion
         boxes4nms = boxes.clone()
@@ -1146,7 +1147,7 @@ def single_xyxy2poly(x, rad):
 					(point4[0,0], point4[0,1])]).astype(int)
 
 
-def single_xywhrad2poly(width, height, box, denormalize=True):
+def single_xywhrad2poly(box, width=-1, height=-1, denormalize=True):
     if isinstance(box, torch.Tensor):
         my_sin = torch.sin
         my_cos = torch.cos

@@ -69,7 +69,7 @@ def plot_one_box(x, img, color=None, label=None, line_thickness=3):
     # REVIEW: change x1, y1, x2, y2 to x1, y1, x2, y2..., x4, y4
     # print(x)
     # print(img.shape[1], img.shape[0])
-    poly = single_xywhrad2poly(640, 640, x, denormalize=False)
+    poly = single_xywhrad2poly(x, denormalize=False)
     # print(poly)
     c1 = poly[1]
 
@@ -545,7 +545,7 @@ def plot_skeleton_kpts(im, kpts, steps, orig_shape=None):
         cv2.line(im, pos1, pos2, (int(r), int(g), int(b)), thickness=2)
 
 # REVIEW: function for plotting targets and anchor in training phase (hbb)
-def plot_targets_and_anchors(tb_writer, model, iters, epoch, cv_imgs, indices, tbox, trad, anchors, offsets):
+def plot_targets_and_anchors(tb_writer, model, epoch, cv_imgs, indices, tbox, trad, anchors, offsets):
     anchor_stride_list = model.stride
 
     for img_id, img in enumerate(cv_imgs):
@@ -565,12 +565,12 @@ def plot_targets_and_anchors(tb_writer, model, iters, epoch, cv_imgs, indices, t
                     # print("--------------------------------------------")
                     # print("x, y, w, h:", x, y, w, h)
                     # print("x, y, w*anchor_stride, h*anchor_stride:", x, y, w*anchor_stride, h*anchor_stride)
-                    box = torch.stack((x.cpu(), y.cpu(), w, h))
-                    print("xywh:", box)
-                    box = single_xywh2xyxy(box)
-                    print("xyxy:", box)
-                    poly = single_xyxy2poly(box, rad)
-                    print("poly:", poly)
+                    box = torch.stack((x.cpu(), y.cpu(), w*anchor_stride, h*anchor_stride, rad.cpu()))
+                    # print("xywh:", box)
+                    # box = single_xywh2xyxy(box)
+                    # print("xyxy:", box)
+                    poly = single_xywhrad2poly(box, denormalize=False)
+                    # print("poly:", poly)
 
                     if i == 0:   color = (255, 0, 0)
                     elif i == 1: color = (0, 255, 0)
@@ -588,10 +588,9 @@ def plot_targets_and_anchors(tb_writer, model, iters, epoch, cv_imgs, indices, t
                     cv2.line(img_with_all_anchors, poly[3], poly[0], color, 1, cv2.LINE_AA)
 
             
-            # cv2.imwrite(yolo_layer_anchor_filename, np.array(img_with_one_anchor.cpu()))
+            tb_writer.add_image("train/anchor_all", img_with_all_anchors, dataformats="HWC", global_step=epoch)
 
-    # if iters == 0: cv2.imwrite(all_anchors_filename, np.array(img_with_all_anchors.cpu()))
-    tb_writer.add_image("train_batch_all_anchors.jpg", img_with_all_anchors, dataformats="HWC", global_step=epoch)
+    tb_writer.add_image("train/anchors_one", img_with_all_anchors, dataformats="HWC", global_step=epoch)
     
 
 # REVIEW: plotting for pred results in test phase (obb)

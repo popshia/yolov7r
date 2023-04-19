@@ -143,7 +143,7 @@ def test(data,
             if compute_loss:
                 # REVIEW: change compute_loss return index from 3 to 4
                 # loss += compute_loss([x.float() for x in train_out], targets)[1][:3]  # box, obj, cls
-                loss += compute_loss([x.float() for x in train_out], targets, loss_terms, model, epoch, tb_writer, cv_imgs)[1][:4]  # box, obj, cls, rad
+                loss += compute_loss([x.float() for x in train_out], targets, loss_terms)[1][:4]  # box, obj, cls, rad
 
             # Run NMS
             # REVIEW: exclude radian value in targets by changing targets[:, 2:] to targets[:, 2:6]
@@ -153,7 +153,7 @@ def test(data,
 
             # # REVIEW: add plotting for outputs befrore NMS
             if training and batch_i == rand_batch:
-                plot_pred_results(tb_writer, "test/before_nms", out[0], conf_thres, copy.deepcopy(cv_imgs[0]), epoch, before_nms=True)
+                plot_pred_results(tb_writer, "test/before_nms", out[0], 0.05, copy.deepcopy(cv_imgs[0]), epoch, before_nms=True)
 
             t = time_synchronized()
 
@@ -167,7 +167,7 @@ def test(data,
 
         # # REVIEW: add plotting for outputs after NMS
         if training and batch_i == rand_batch:
-            plot_pred_results(tb_writer, "test/after_nms", out[0], conf_thres, copy.deepcopy(cv_imgs[0]), epoch, before_nms=False)
+            plot_pred_results(tb_writer, "test/after_nms", out[0], 0.1, copy.deepcopy(cv_imgs[0]), epoch, before_nms=False)
 
         # Statistics per image
         for si, pred in enumerate(out):

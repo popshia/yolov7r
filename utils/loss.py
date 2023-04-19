@@ -456,7 +456,7 @@ class ComputeLoss:
         for k in 'na', 'nc', 'nl', 'anchors':
             setattr(self, k, getattr(det, k))
 
-    def __call__(self, p, targets, loss_terms, model, epoch=-1, tb_writer=None, cv_imgs=None):  # predictions, targets, model
+    def __call__(self, p, targets, loss_terms, model=None, num_batchs=-1, epoch=-1, tb_writer=None, cv_imgs=None):  # predictions, targets, model
         device = targets.device
         # REVIEW: add lrad
         # lcls, lbox, lobj = torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device)
@@ -464,9 +464,9 @@ class ComputeLoss:
 
         tcls, tbox, trad, indices, anchors, offsets = self.build_targets(p, targets)  # targets
 
-        # FIXME: plotting coordinates are wrong
-        # if tb_writer and num_iter == 0:
-            # plot_targets_and_anchors(tb_writer, model, num_iter, epoch, cv_imgs, indices, tbox, trad, anchors, offsets)
+        # REVIEW: add anchor plotting
+        if tb_writer and num_batchs == 0:
+            plot_targets_and_anchors(tb_writer, model, epoch, cv_imgs, indices, tbox, trad, anchors, offsets)
 
         # Losses
         for i, pi in enumerate(p):  # layer index, layer predictions
