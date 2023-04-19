@@ -67,7 +67,7 @@ def plot_one_box(x, img, color=None, label=None, line_thickness=3):
     # c1, c2 = (int(x[0]), int(x[1])), (int(x[2]), int(x[3]))
 
     # REVIEW: change x1, y1, x2, y2 to x1, y1, x2, y2..., x4, y4
-    print(x)
+    # print(x)
     # print(img.shape[1], img.shape[0])
     poly = single_xywhrad2poly(640, 640, x, denormalize=False)
     # print(poly)

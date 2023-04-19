@@ -541,7 +541,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
 
         hyp = self.hyp
         mosaic = self.mosaic and random.random() < hyp['mosaic']
-        mosaic = False
+        # mosaic = False
         if mosaic:
             # Load mosaic
             if random.random() < 0.8:
@@ -1214,13 +1214,13 @@ def r_random_perspective(img, targets=(), segments=(), degrees=10, translate=.1,
 
             # NOTE: (cls, x1, y1, x2, y2, ..., x4, y4, Θ)
             targets = np.concatenate((targets[:, 0].reshape(-1, 1), clockwise_xy, targets[:, -1].reshape(-1, 1)), axis=1)
-            xy = (targets[:, [1, 2]]+targets[:, [5, 6]])/2
-            wh = ((targets[:, [3, 5]]+targets[:, [1, 3]])**2+(targets[:, [4, 6]]-targets[:, [2, 4]])**2)**0.5
+            # xy = (targets[:, [1, 2]]+targets[:, [5, 6]])/2
+            # wh = ((targets[:, [3, 5]]+targets[:, [1, 3]])**2+(targets[:, [4, 6]]-targets[:, [2, 4]])**2)**0.5
 
             # TODO: rotation conversion
-            # if targets.shape[0] and targets.shape[1] == 10:
-            #     targets[:, -1] += a*math.pi/360
-            #     targets[:, -1] = np.where(targets[:, -1]<0, math.pi*2+targets[:, -1], np.where(targets[:, -1]>=math.pi*2, targets[:, -1]-math.pi*2, targets[:, -1]))
+            if targets.shape[0] and targets.shape[1] == 10:
+                targets[:, -1] += a/360
+                targets[:, -1] = np.where(targets[:, -1]<0, 1+targets[:, -1], np.where(targets[:, -1]>1, targets[:, -1]-1, targets[:, -1]))
 
             # create new boxes
             # x = xy[:, [0, 2, 4, 6]]
@@ -1259,13 +1259,15 @@ def r_box_candidates(box1, imgw, imgh):  # box1(4,n), box2(4,n)
     # NOTE: use new_targets to find head point
     # NOTE: convert poly points (which is not align with object) into xywhrad to calculate the real poly points to find head point 
     xy = (box1[:, [1, 2]]+box1[:, [5, 6]])/2
-    wh = ((box1[:, [3, 5]]+box1[:, [1, 3]])**2+(box1[:, [4, 6]]-box1[:, [2, 4]])**2)**0.5
+    wh = ((box1[:, [3, 5]]-box1[:, [1, 3]])**2+(box1[:, [4, 6]]-box1[:, [2, 4]])**2)**0.5
     rboxs_xywhrad = np.concatenate((xy, wh, box1[:, 9].reshape(-1, 1)), axis=1)
     rbox_poly = xywhrad2poly(rboxs_xywhrad)
     head_xy = (rbox_poly[:, [0, 1]]+rbox_poly[:, [2, 3]])/2
 
     head_in_img_mask = (0<=head_xy[:, 0])&(head_xy[:, 0]<imgw)&(0<=head_xy[:, 1])&(head_xy[:, 1]<imgh)
+
     corners_outside_img_mask = (((rbox_poly[:, 0::2]<0)|(rbox_poly[:, 0::2]>=imgw)) & ((rbox_poly[:, 1::2]<0) | (rbox_poly[:, 1::2]>=imgh)))[:].all(1)
+
     center_in_img_mask = (0<=xy[:, 0])&(xy[:, 0]<imgw)&(0<=xy[:, 1])&(xy[:, 1]<imgh)
 
     return head_in_img_mask & ~corners_outside_img_mask & center_in_img_mask
