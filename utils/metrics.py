@@ -150,7 +150,8 @@ class ConfusionMatrix:
 
         # REVIEW: add rotated iou
         # iou = general.box_iou(labels[:, 1:], detections[:, :4])
-        iou = general.r_box_iou(labels[:, 1:6], detections[:, :5])
+        iou = general.rbox_iou(labels[:, 1:6], detections[:, :5])
+        # print(iou)
 
         x = torch.where(iou > self.iou_thres)
         if x[0].shape[0]:

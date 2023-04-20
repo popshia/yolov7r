@@ -13,7 +13,7 @@ from tqdm import tqdm
 from models.experimental import attempt_load
 from utils.datasets import create_dataloader
 from utils.general import coco80_to_coco91_class, check_dataset, check_file, check_img_size, check_requirements, \
-    box_iou, non_max_suppression, scale_coords, xyxy2xywh, xywh2xyxy, set_logging, increment_path, colorstr, rotate_non_max_suppression, r_box_iou
+    box_iou, non_max_suppression, scale_coords, xyxy2xywh, xywh2xyxy, set_logging, increment_path, colorstr, rotate_non_max_suppression, rbox_iou
 from utils.metrics import ap_per_class, ConfusionMatrix
 from utils.plots import plot_images, output_to_target, plot_study_txt, plot_pred_results
 from utils.torch_utils import select_device, time_synchronized, TracedModel
@@ -148,10 +148,10 @@ def test(data,
             # Run NMS
             # REVIEW: exclude radian value in targets by changing targets[:, 2:] to targets[:, 2:6]
             # targets[:, 2:] *= torch.Tensor([width, height, width, height]).to(device)  # to pixels
-            targets[:, 2:6] *= torch.Tensor([width, height, width, height]).to(device)  # to pixels
+            # targets[:, 2:6] *= whwh # to pixels
             lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if save_hybrid else []  # for autolabelling
 
-            # # REVIEW: add plotting for outputs befrore NMS
+            # REVIEW: add plotting for outputs befrore NMS
             if training and batch_i == rand_batch:
                 plot_pred_results(tb_writer, "test/before_nms", out[0], 0.05, copy.deepcopy(cv_imgs[0]), epoch, before_nms=True)
 
@@ -236,7 +236,9 @@ def test(data,
 
                 # REVIEW: add tbox_xywhrad
                 tbox_xywhrad = labels[:, 1:6]
-                tbox_xywhrad[:, 1:5] *= whwh
+                tbox_xywhrad[:, 0:4] *= whwh
+                # print(paths[si])
+                # print("t: ", tbox_xywhrad)
 
                 if plots:
                     # REVIEW: add tbox_xywhrad in process_batch
@@ -266,7 +268,9 @@ def test(data,
                         # Prediction to target ious
                         # REVIEW: add rotation iou
                         # ious, i = box_iou(predn[pi, :4], tbox[ti]).max(1)  # best ious, indices
-                        ious, i = r_box_iou(pbox4nms, tbox4nms[ti], useGPU=True).max(1)
+                        # print("p: ", pbox4nms)
+                        ious, i = rbox_iou(pbox4nms, tbox4nms[ti], useGPU=True).max(1)
+                        # print(ious, i)
 
                         # Append detections
                         detected_set = set()

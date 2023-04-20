@@ -22,8 +22,10 @@ from utils.google_utils import gsutil_getsize
 from utils.metrics import fitness
 from utils.torch_utils import init_torch_seeds
 
-from utils.box_utils_jacklin.rotate_polygon_nms import rotate_gpu_nms
-from utils.box_utils_jacklin.iou_rotate import iou_rotate_calculate1
+# from utils.box_utils_jacklin.rotate_polygon_nms import rotate_gpu_nms
+# from utils.box_utils_jacklin.iou_rotate import iou_rotate_calculate1
+from utils.box_utils.rotate_polygon_nms import rotate_gpu_nms
+from utils.box_utils.iou_rotate import iou_rotate_calculate1
 import math
 
 # Settings
@@ -390,7 +392,7 @@ def bbox_iou(box1, box2, x1y1x2y2=True, GIoU=False, DIoU=False, CIoU=False, eps=
     else:
         return iou  # IoU
 
-def r_box_iou(box1, box2, useGPU=True):
+def rbox_iou(box1, box2, useGPU=True):
     # https://github.com/pytorch/vision/blob/master/torchvision/ops/boxes.py
     """
     Return intersection-over-union (Jaccard index) of boxes.

@@ -487,21 +487,25 @@ class ComputeLoss:
                 prad = ps[:, 4]
 
                 # REVIEW: add different iou calculation for hbb and obb box losses
-                iou = bbox_iou(pbox.T, tbox[i], x1y1x2y2=False, CIoU=True)  # iou(prediction, target)
                 if loss_terms.find("hciou") != -1:
                     iou = bbox_iou(pbox.T, tbox[i], x1y1x2y2=False, CIoU=True)  # iou(prediction, target)
                 elif loss_terms.find('r') != -1:
                     tbox_convert = tbox[i].clone()
+                    # print(tbox_convert[0], trad[i][0])
                     tbox_convert[:, 1] = -tbox[i][:, 1]
                     trad_convert = trad[i]*math.pi*2
                     trad_convert = torch.where(trad_convert-math.pi/2<0, trad_convert-math.pi/2+2*math.pi, trad_convert-math.pi/2)
+                    # print(tbox_convert[0], trad_convert[0])
                     pbox_convert = pbox.clone()
+                    # print(pbox_convert[0], prad[0])
                     pbox_convert[:, 1] = -pbox[:, 1]
                     prad_convert = prad*math.pi*2
                     prad_convert = torch.where(prad_convert-math.pi/2<0, prad_convert-math.pi/2+2*math.pi, prad_convert-math.pi/2)
+                    # print(pbox_convert[0], prad_convert[0])
 
                     txywhrad = torch.cat((tbox_convert, trad_convert.view(-1, 1)), dim=1).unsqueeze(0)
                     pxywhrad = torch.cat((pbox_convert, prad_convert.view(-1, 1)), dim=1).unsqueeze(0)
+                    # print(txywhrad.shape, pxywhrad.shape)
 
                     if loss_terms.find("giou") != -1:
                         iou = oriented_iou_loss.cal_giou(pxywhrad, txywhrad)[0]

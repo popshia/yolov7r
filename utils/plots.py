@@ -588,9 +588,9 @@ def plot_targets_and_anchors(tb_writer, model, epoch, cv_imgs, indices, tbox, tr
                     cv2.line(img_with_all_anchors, poly[3], poly[0], color, 1, cv2.LINE_AA)
 
             
-            tb_writer.add_image("train/anchor_all", img_with_all_anchors, dataformats="HWC", global_step=epoch)
+            tb_writer.add_image("train/anchor_one", img_with_one_anchor, dataformats="HWC", global_step=epoch)
 
-    tb_writer.add_image("train/anchors_one", img_with_all_anchors, dataformats="HWC", global_step=epoch)
+    tb_writer.add_image("train/anchor_all", img_with_all_anchors, dataformats="HWC", global_step=epoch)
     
 
 # REVIEW: plotting for pred results in test phase (obb)
