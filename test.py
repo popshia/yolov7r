@@ -148,7 +148,8 @@ def test(data,
             # Run NMS
             # REVIEW: exclude radian value in targets by changing targets[:, 2:] to targets[:, 2:6]
             # targets[:, 2:] *= torch.Tensor([width, height, width, height]).to(device)  # to pixels
-            # targets[:, 2:6] *= whwh # to pixels
+            if nms == "hnms":
+                targets[:, 2:6] *= whwh # to pixels
             lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if save_hybrid else []  # for autolabelling
 
             # REVIEW: add plotting for outputs befrore NMS
@@ -158,10 +159,10 @@ def test(data,
             t = time_synchronized()
 
             # REVIEW: add rotate_non_max_suppression
-            if nms == "hnms":
-                out = non_max_suppression(out, conf_thres=conf_thres, iou_thres=iou_thres, labels=lb, multi_label=True)
-            else:
+            if nms == "rnms":
                 out = rotate_non_max_suppression(out, conf_thres=conf_thres, iou_thres=iou_thres, labels=lb, multi_label=True)
+            else:
+                out = non_max_suppression(out, conf_thres=conf_thres, iou_thres=iou_thres, labels=lb, multi_label=True)
 
             t1 += time_synchronized() - t
 
@@ -231,19 +232,23 @@ def test(data,
                 tcls_tensor = labels[:, 0]
 
                 # target boxes
-                # tbox = xywh2xyxy(labels[:, 1:5])
-                # scale_coords(img[si].shape[1:], tbox, shapes[si][0], shapes[si][1])  # native-space labels
+                if nms == "rnms":
+                    # REVIEW: add tbox_xywhrad
+                    tbox_xywhrad = labels[:, 1:6]
+                    tbox_xywhrad[:, 0:4] *= whwh
+                else:
+                    tbox = xywh2xyxy(labels[:, 1:5])
+                    scale_coords(img[si].shape[1:], tbox, shapes[si][0], shapes[si][1])  # native-space labels
 
-                # REVIEW: add tbox_xywhrad
-                tbox_xywhrad = labels[:, 1:6]
-                tbox_xywhrad[:, 0:4] *= whwh
                 # print(paths[si])
                 # print("t: ", tbox_xywhrad)
 
                 if plots:
                     # REVIEW: add tbox_xywhrad in process_batch
-                    # confusion_matrix.process_batch(predn, torch.cat((labels[:, 0:1], tbox), 1))
-                    confusion_matrix.process_batch(predn, torch.cat((labels[:, 0:1], tbox_xywhrad), 1))
+                    if nms == "rnms":
+                        confusion_matrix.process_batch(predn, torch.cat((labels[:, 0:1], tbox_xywhrad), 1), nms)
+                    else:
+                        confusion_matrix.process_batch(predn, torch.cat((labels[:, 0:1], tbox), 1), nms)
 
                 # Per target class
                 for cls in torch.unique(tcls_tensor):
@@ -255,21 +260,23 @@ def test(data,
 
                     # Search for detections
                     if pi.shape[0]:
-                        # REVIEW: add pred, target conversion
-                        tbox4nms = tbox_xywhrad.clone()
-                        tbox4nms[:, 1] = -tbox4nms[:, 1]
-                        tbox4nms[:, 4] = tbox4nms[:, 4]*math.pi*2
-                        tbox4nms[:, 4] = torch.where(tbox4nms[:, 4]-math.pi/2<0, tbox4nms[:, 4]-math.pi/2+2*math.pi, tbox4nms[:, 4]-math.pi/2)
-                        pbox4nms = predn[pi, :5].clone()
-                        pbox4nms[:, 1] = -pbox4nms[:, 1]
-                        pbox4nms[:, 4] = pbox4nms[:, 4]*math.pi*2
-                        pbox4nms[:, 4] = torch.where(pbox4nms[:, 4]-math.pi/2<0, pbox4nms[:, 4]-math.pi/2+2*math.pi, pbox4nms[:, 4]-math.pi/2)
+                        if nms == "rnms":
+                            # REVIEW: add pred, target conversion
+                            tbox4nms = tbox_xywhrad.clone()
+                            tbox4nms[:, 1] = -tbox4nms[:, 1]
+                            tbox4nms[:, 4] = tbox4nms[:, 4]*math.pi*2
+                            tbox4nms[:, 4] = torch.where(tbox4nms[:, 4]-math.pi/2<0, tbox4nms[:, 4]-math.pi/2+2*math.pi, tbox4nms[:, 4]-math.pi/2)
+                            pbox4nms = predn[pi, :5].clone()
+                            pbox4nms[:, 1] = -pbox4nms[:, 1]
+                            pbox4nms[:, 4] = pbox4nms[:, 4]*math.pi*2
+                            pbox4nms[:, 4] = torch.where(pbox4nms[:, 4]-math.pi/2<0, pbox4nms[:, 4]-math.pi/2+2*math.pi, pbox4nms[:, 4]-math.pi/2)
+                            # REVIEW: add rotation iou
+                            ious, i = rbox_iou(pbox4nms, tbox4nms[ti], useGPU=True).max(1)
+                        else:
+                            # Prediction to target ious
+                            ious, i = box_iou(predn[pi, :4], tbox[ti]).max(1)  # best ious, indices
 
-                        # Prediction to target ious
-                        # REVIEW: add rotation iou
-                        # ious, i = box_iou(predn[pi, :4], tbox[ti]).max(1)  # best ious, indices
                         # print("p: ", pbox4nms)
-                        ious, i = rbox_iou(pbox4nms, tbox4nms[ti], useGPU=True).max(1)
                         # print(ious, i)
 
                         # Append detections

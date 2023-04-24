@@ -119,7 +119,7 @@ class ConfusionMatrix:
         self.conf = conf
         self.iou_thres = iou_thres
 
-    def process_batch(self, detections, labels):
+    def process_batch(self, detections, labels, nms):
         """
         Return intersection-over-union (Jaccard index) of boxes.
         Both sets of boxes are expected to be in (x1, y1, x2, y2) format.
@@ -141,16 +141,18 @@ class ConfusionMatrix:
         detection_classes = detections[:, 6].int()
 
         # REVIEW: add convertions
-        detections[:, 1] = -detections[:, 1]
-        detections[:, 4] = detections[:, 4]*math.pi*2
-        detections[:, 4] = torch.where(detections[:, 4]-math.pi/2<0, detections[:, 4]-math.pi/2+2*math.pi, detections[:, 4]-math.pi/2)
-        labels[:, 2] = -labels[:, 2]
-        labels[:, 5] = labels[:, 5]*math.pi*2
-        labels[:, 5] = torch.where(labels[:, 5]-math.pi/2<0, labels[:, 5]-math.pi/2+2*math.pi, labels[:, 5]-math.pi/2)
+        if nms == "rnms":
+            detections[:, 1] = -detections[:, 1]
+            detections[:, 4] = detections[:, 4]*math.pi*2
+            detections[:, 4] = torch.where(detections[:, 4]-math.pi/2<0, detections[:, 4]-math.pi/2+2*math.pi, detections[:, 4]-math.pi/2)
+            labels[:, 2] = -labels[:, 2]
+            labels[:, 5] = labels[:, 5]*math.pi*2
+            labels[:, 5] = torch.where(labels[:, 5]-math.pi/2<0, labels[:, 5]-math.pi/2+2*math.pi, labels[:, 5]-math.pi/2)
+            # REVIEW: add rotated iou
+            iou = general.rbox_iou(labels[:, 1:6], detections[:, :5])
+        else:
+            iou = general.box_iou(labels[:, 1:], detections[:, :4])
 
-        # REVIEW: add rotated iou
-        # iou = general.box_iou(labels[:, 1:], detections[:, :4])
-        iou = general.rbox_iou(labels[:, 1:6], detections[:, :5])
         # print(iou)
 
         x = torch.where(iou > self.iou_thres)
