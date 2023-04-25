@@ -1,4 +1,4 @@
-# YOLOv7r - An oriented Vehicle Detection in Aerial Images Based on YOLOv7.
+# YOLOv7r - An oriented Vehicle Detection in Aerial Images Based on YOLOv7(obb).
 
 
 - Implementation of paper - []()
