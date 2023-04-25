@@ -343,8 +343,6 @@ def train(hyp, opt, device, tb_writer=None):
         optimizer.zero_grad()
         for i, (imgs, targets, paths, _, cv_imgs) in pbar:  # batch -------------------------------------------------------------
             ni = i + nb * epoch  # number integrated batches (since train start)
-            # REVIEW: add img_to_plot_anchor to plot
-            imgs_to_plot_anchor = imgs
             imgs = imgs.to(device, non_blocking=True).float() / 255.0  # uint8 to float32, 0-255 to 0.0-1.0
 
             # Warmup
@@ -371,11 +369,13 @@ def train(hyp, opt, device, tb_writer=None):
             with amp.autocast(enabled=False):
                 pred = model(imgs)  # forward
                 if 'loss_ota' not in hyp or hyp['loss_ota'] == 1:
-                    # REVIEW: add loss_term in compute loss
-                    loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs, opt.loss_terms, model, i, epoch, tb_writer, cv_imgs)  # loss scaled by batch_size
+                    loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs,
+                                                        # REVIEW: add extra arguments
+                                                        opt.loss_terms, model, i, epoch, tb_writer, cv_imgs)  # loss scaled by batch_size
                 else:
-                    # REVIEW: add loss_term in compute loss
-                    loss, loss_items = compute_loss(pred, targets.to(device), opt.loss_terms, model, i, epoch, tb_writer, cv_imgs)  # loss scaled by batch_size
+                    loss, loss_items = compute_loss(pred, targets.to(device),
+                                                    # REVIEW: add extra arguments
+                                                    opt.loss_terms, model, i, epoch, tb_writer, cv_imgs)  # loss scaled by batch_size
                 if rank != -1:
                     loss *= opt.world_size  # gradient averaged between devices in DDP mode
                 if opt.quad:
@@ -444,9 +444,8 @@ def train(hyp, opt, device, tb_writer=None):
                                                  compute_loss=compute_loss,
                                                  is_coco=is_coco,
                                                  v5_metric=opt.v5_metric,
-                                                 # REVIEW: add loss_terms
+                                                 # REVIEW: add extra arguments
                                                  loss_terms=opt.loss_terms,
-                                                 # REVIEW: add tb_writer and epoch
                                                  tb_writer=tb_writer,
                                                  epoch=epoch,
                                                  nms=opt.nms)
@@ -532,11 +531,11 @@ def train(hyp, opt, device, tb_writer=None):
                                           plots=False,
                                           is_coco=is_coco,
                                           v5_metric=opt.v5_metric,
-                                          # REVIEW: add loss_terms
+                                          # REVIEW: add extra arguments
                                           loss_terms=opt.loss_terms,
-                                          # REVIEW: add tb_writer and epoch
                                           tb_writer=tb_writer,
-                                          epoch=epoch)
+                                          epoch=epoch,
+                                          nms=opt.nms)
 
         # Strip optimizers
         final = best if best.exists() else last  # final model
@@ -650,7 +649,6 @@ if __name__ == '__main__':
         hyp = yaml.load(f, Loader=yaml.SafeLoader)  # load hyps
 
     # Train
-    # TODO: 射了
     logger.info(opt)
     if not opt.evolve:
         tb_writer = None  # init loggers

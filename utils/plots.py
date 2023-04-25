@@ -131,8 +131,9 @@ def output_to_target(output):
         # for *box, conf, cls in o.cpu().numpy():
         for *box, rad, conf, cls in o.cpu().numpy():
             # print(*box, rad, conf, cls)
+            # REVIEW: remove xyxy2xywh from target cuz output format is already xywhrad
             # targets.append([i, cls, *list(*xyxy2xywh(np.array(box)[None])), conf])
-            targets.append([i, cls, *list(*xyxy2xywh(np.array(box)[None])), rad, conf])
+            targets.append([i, cls, *list(np.array(box)[None]), rad, conf])
     return np.array(targets)
 
 
@@ -214,7 +215,8 @@ def plot_images(images, targets, paths=None, fname='images.jpg', names=None, max
 
                     # REVIEW: add radian value in label
                     # print(Path(paths[i]).name[:40], image_targets[j])
-                    label += " " + str(image_targets[j, 6])[:4]
+                    # label += " " + str(image_targets[j, 6])[:4]
+                    label += " " + str(int(float(image_targets[j, 6])*360))
 
                     plot_one_box(box, mosaic, label=label, color=color, line_thickness=tl)
 
@@ -474,6 +476,7 @@ def plot_results(start=0, stop=0, bucket='', id=(), labels=(), save_dir=''):
             # for i in range(10):
             for i in range(12):
                 y = results[i, x]
+                # REVIEW: change i range
                 if i in [0, 1, 2, 3, 6, 7, 8, 9]:
                     y[y == 0] = np.nan  # don't show zero loss values
                     # y /= y[0]  # normalize
@@ -544,7 +547,8 @@ def plot_skeleton_kpts(im, kpts, steps, orig_shape=None):
             continue
         cv2.line(im, pos1, pos2, (int(r), int(g), int(b)), thickness=2)
 
-# REVIEW: function for plotting targets and anchor in training phase (hbb)
+
+# REVIEW: function for plotting targets and anchor in training phase
 def plot_targets_and_anchors(tb_writer, model, epoch, cv_imgs, indices, tbox, trad, anchors, offsets):
     anchor_stride_list = model.stride
 
@@ -593,7 +597,7 @@ def plot_targets_and_anchors(tb_writer, model, epoch, cv_imgs, indices, tbox, tr
     tb_writer.add_image("train/anchor_all", img_with_all_anchors, dataformats="HWC", global_step=epoch)
     
 
-# REVIEW: plotting for pred results in test phase (obb)
+# REVIEW: plotting for pred results in test phase
 def plot_pred_results(tb_writer, f, preds, conf_thres, img, epoch, before_nms=False, shape=None, num=0):
     img_to_draw = img
 
@@ -602,7 +606,8 @@ def plot_pred_results(tb_writer, f, preds, conf_thres, img, epoch, before_nms=Fa
             box = pred[:4]
             rad = pred[4]
 
-            box = single_xywh2xyxy(box)
+            if before_nms:
+                box = single_xywh2xyxy(box)
             poly = single_xyxy2poly(box, rad)
 
             if poly.all() >= 0.0:
@@ -616,10 +621,5 @@ def plot_pred_results(tb_writer, f, preds, conf_thres, img, epoch, before_nms=Fa
                 # cv2.drawContours(image=img_to_draw, contours=[poly], contourIdx=-1, color=(0, 0, 255), thickness=3)
                 # NOTE: for hbb
                 # img = draw_bounding_boxes(img, box, width=1, colors="red")
-
-    # if before_nms:
-    #     cv2.imwrite("/home/lab602.11077009/.pipeline/11077009/yolov7r/before_nms_{}.jpg".format(num), img_to_draw)
-    # else:
-    #     cv2.imwrite("/home/lab602.11077009/.pipeline/11077009/yolov7r/after_nms_{}.jpg".format(num), img_to_draw)
 
     tb_writer.add_image(f, img_to_draw, dataformats="HWC", global_step=epoch)

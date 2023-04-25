@@ -451,17 +451,19 @@ class ComputeLoss:
         #self.balance = {3: [4.0, 1.0, 0.4]}.get(det.nl, [4.0, 1.0, 0.25, 0.1, .05])  # P3-P7
         #self.balance = {3: [4.0, 1.0, 0.4]}.get(det.nl, [4.0, 1.0, 0.5, 0.4, .1])  # P3-P7
         self.ssi = list(det.stride).index(16) if autobalance else 0  # stride 16 index
-        # REVIEW: add self.SL1rad
+        # REVIEW: add self.SL1rad and self.MSErad
         self.BCEcls, self.BCEobj, self.SL1rad, self.MSErad, self.gr, self.hyp, self.autobalance = BCEcls, BCEobj, SL1rad, MSErad, model.gr, h, autobalance
         for k in 'na', 'nc', 'nl', 'anchors':
             setattr(self, k, getattr(det, k))
 
-    def __call__(self, p, targets, loss_terms, model=None, num_batchs=-1, epoch=-1, tb_writer=None, cv_imgs=None):  # predictions, targets, model
+    def __call__(self, p, targets,
+                 # REVIEW: add extra arguments
+                 loss_terms, model=None, num_batchs=-1, epoch=-1, tb_writer=None, cv_imgs=None):  # predictions, targets, model
         device = targets.device
         # REVIEW: add lrad
-        # lcls, lbox, lobj = torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device)
         lcls, lbox, lobj, lrad = torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device)
 
+        # REVIEW: add trad, offsets in build_targets
         tcls, tbox, trad, indices, anchors, offsets = self.build_targets(p, targets)  # targets
 
         # REVIEW: add anchor plotting
@@ -562,19 +564,16 @@ class ComputeLoss:
         bs = tobj.shape[0]  # batch size
 
         # REVIEW: add lrad to loss sum
-        # loss = lbox + lobj + lcls
         loss = lbox + lobj + lcls + lrad
 
         # REVIEW: add lrad in return
-        # return loss * bs, torch.cat((lbox, lobj, lcls, loss)).detach()
         return loss * bs, torch.cat((lbox, lobj, lcls, lrad, loss)).detach()
 
     def build_targets(self, p, targets):
         # Build targets for compute_loss(), input targets(image,class,x,y,w,h)
         na, nt = self.na, targets.shape[0]  # number of anchors, targets
 
-        # REVIEW: add trad
-        # tcls, tbox, indices, anch = [], [], [], []
+        # REVIEW: add trad and offsets_lists
         tcls, tbox, trad, indices, anch, offsets_list = [], [], [], [], [], []
 
         # REVIEW: change gain size from 7 to 8
@@ -637,8 +636,7 @@ class ComputeLoss:
             trad.append(grad)
             offsets_list.append(offsets)
 
-        # TODO: add return trad
-        # return tcls, tbox, indices, anch
+        # REVIEW: add trad and offsets_list in return
         return tcls, tbox, trad, indices, anch, offsets_list
 
 
@@ -668,29 +666,28 @@ class ComputeLossOTA:
         det = model.module.model[-1] if is_parallel(model) else model.model[-1]  # Detect() module
         self.balance = {3: [4.0, 1.0, 0.4]}.get(det.nl, [4.0, 1.0, 0.25, 0.06, .02])  # P3-P7
         self.ssi = list(det.stride).index(16) if autobalance else 0  # stride 16 index
-        # REVIEW: add self.SL1rad
+        # REVIEW: add self.SL1rad and self.MSErad
         self.BCEcls, self.BCEobj, self.SL1rad, self.MSErad, self.gr, self.hyp, self.autobalance = BCEcls, BCEobj, SL1rad, MSErad, model.gr, h, autobalance
         for k in 'na', 'nc', 'nl', 'anchors', 'stride':
             setattr(self, k, getattr(det, k))
 
     # REVIEW: add other needed parameters for ploting anchors
-    def __call__(self, p, targets, imgs, loss_terms, model, num_iter=-1, epoch=-1, tb_writer=None, cv_imgs=None):  # predictions, targets, model   
+    def __call__(self, p, targets,
+                 # REVIEW: add extra arguments
+                 imgs, loss_terms, model, num_iter=-1, epoch=-1, tb_writer=None, cv_imgs=None):  # predictions, targets, model   
         device = targets.device
 
         # REVIEW: add radian loss "lrad"
-        # lcls, lbox, lobj = torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device)
         lcls, lbox, lobj, lrad = torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device)
 
-        # REVIEW: add target rads and indices
-        # bs, as_, gjs, gis, targets, anchors = self.build_targets(p, targets, imgs)
+        # REVIEW: add target rads, indices and offsets
         bs, as_, gjs, gis, targets, anchors, rads, indices, offsets = self.build_targets(p, targets, imgs)
 
         pre_gen_gains = [torch.tensor(pp.shape, device=device)[[3, 2, 3, 2]] for pp in p] 
     
         # Losses
         for i, pi in enumerate(p):  # layer index, layer predictions
-            # REVIEW: get corresponding rads
-            # b, a, gj, gi = bs[i], as_[i], gjs[i], gis[i]  # image, anchor, gridy, gridx
+            # REVIEW: add corresponding rads
             b, a, gj, gi, trad = bs[i], as_[i], gjs[i], gis[i], rads[i]  # image, anchor, gridy, gridx, rads
             # <INFO> rad: current layer's all targets' radian value
 
@@ -718,7 +715,6 @@ class ComputeLossOTA:
                 # print(pbox.shape, pbox.T.shape)
 
                 # REVIEW: add different iou calculation for hbb and obb box loss
-                # iou = bbox_iou(pbox.T, selected_tbox, x1y1x2y2=False, CIoU=True)  # iou(prediction, target)
                 if loss_terms.find("hciou") != -1:
                     iou = bbox_iou(pbox.T, selected_tbox, x1y1x2y2=False, CIoU=True)  # iou(prediction, target)
                 elif loss_terms.find('r') != -1:
@@ -770,6 +766,7 @@ class ComputeLossOTA:
                 # p_offset = gigj_head_offset(imgs[b].shape[1], pbox, prad, gi, gj)
 
                 # REVIEW: add radian loss with Smooth L1 Loss
+                # NOTE: build_target already does sigmoid, should i do it again here?
                 lrad += self.SL1rad(ps[:, 4].sigmoid(), trad)
                 # lrad += self.SL1rad(p_offset, t_offset)
 
@@ -795,12 +792,10 @@ class ComputeLossOTA:
         bs = tobj.shape[0]  # batch size
 
         # REVIEW: add lrad to loss sum
-        # loss = lbox + lobj + lcls
         loss = lbox + lobj + lcls + lrad
         # print(lbox.item(), lobj.item(), lcls.item(), lrad.item(), loss.item())
 
         # REVIEW: add lrad in return
-        # return loss * bs, torch.cat((lbox, lobj, lcls, loss)).detach()
         # print("lbox: {}, lobj: {}, lcls: {}, lrad: {}, loss: {}".format(lbox, lobj, lcls, lrad, loss))
         return loss * bs, torch.cat((lbox, lobj, lcls, lrad, loss)).detach()
 
@@ -901,7 +896,6 @@ class ComputeLossOTA:
                 continue
             p_obj = torch.cat(p_obj, dim=0)
             p_cls = torch.cat(p_cls, dim=0)
-
             # REVIEW: add torch.cat for p_rad
             p_rad = torch.cat(p_rad, dim=0)
 
@@ -911,7 +905,6 @@ class ComputeLossOTA:
             all_gj = torch.cat(all_gj, dim=0)
             all_gi = torch.cat(all_gi, dim=0)
             all_anch = torch.cat(all_anch, dim=0)
-            
             # REVIEW: add torch.cat for all_rad
             all_rad = torch.cat(all_rad, dim=0)
 
@@ -969,7 +962,6 @@ class ComputeLossOTA:
             all_gj = all_gj[fg_mask_inboxes]
             all_gi = all_gi[fg_mask_inboxes]
             all_anch = all_anch[fg_mask_inboxes]
-
             # REVIEW: add masking inboxes for all_rad
             all_rad = all_rad[fg_mask_inboxes]
         
@@ -983,7 +975,6 @@ class ComputeLossOTA:
                 matching_gis[i].append(all_gi[layer_idx])
                 matching_targets[i].append(this_target[layer_idx])
                 matching_anchs[i].append(all_anch[layer_idx])
-
                 # REVIEW: append matching rads
                 matching_rads[i].append(all_rad[layer_idx])
 
@@ -995,7 +986,6 @@ class ComputeLossOTA:
                 matching_gis[i] = torch.cat(matching_gis[i], dim=0)
                 matching_targets[i] = torch.cat(matching_targets[i], dim=0)
                 matching_anchs[i] = torch.cat(matching_anchs[i], dim=0)
-
                 # REVIEW: add matching_rads
                 matching_rads[i] = torch.cat(matching_rads[i], dim=0)
 
@@ -1017,7 +1007,6 @@ class ComputeLossOTA:
         na, nt = self.na, targets.shape[0]  # number of anchors, targets
 
         # REVIEW: add offsets_list
-        # indices, anch = [], []
         indices, anch, offsets_list = [], [], []
         # <INFO> indices: plural form of index
 
@@ -1089,12 +1078,10 @@ class ComputeLossOTA:
             # Append
             # REVIEW: change anchor index from 6 to 7
             # a = t[:, 6].long()  # anchor indices
-
             a = t[:, 7].long()  # anchor indices
             # NOTE: b: image index, c: class, a: anchor index, gj: grid y coordinate, gx: grid x coordinate
 
             # REVIEW: add grad into indices
-            # indices.append((b, a, gj.clamp_(0, gain[3] - 1), gi.clamp_(0, gain[2] - 1)))  # image, anchor, grid indices
             indices.append((b, a, gj.clamp_(0, gain[3] - 1), gi.clamp_(0, gain[2] - 1), grad))  # image, anchor, grid indices
             anch.append(anchors[a])  # anchors
 

@@ -496,11 +496,13 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                             l = np.concatenate((classes.reshape(-1, 1), segments2boxes(segments)), 1)  # (cls, xywh)
                         l = np.array(l, dtype=np.float32)
                     if len(l):
-                        # REVIEW: change label shape from 5 to 6
+                        # REVIEW: change label shape checking from 5 to 6
                         # assert l.shape[1] == 5, 'labels require 5 columns each'
                         assert l.shape[1] == 6, 'labels require 6 columns each'
                         assert (l >= 0).all(), 'negative labels'
+                        # TODO: add label threshold to math.pi*2
                         assert (l[:, 1:] <= 1).all(), 'non-normalized or out of bounds coordinate labels'
+                        # assert (l[:, 1:] <= math.pi*2).all(), 'non-normalized or out of bounds coordinate labels'
                         assert np.unique(l, axis=0).shape[0] == l.shape[0], 'duplicate labels'
                     else:
                         ne += 1  # label empty
@@ -619,7 +621,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
             labels[:, [2, 4]] /= img.shape[0]  # normalized height 0-1
             labels[:, [1, 3]] /= img.shape[1]  # normalized width 0-1
         
-        # REVIEW: fix radian value after flipping, #617 and #624-#628
+        # REVIEW: fix radian value after flipping
         if self.augment:
             # flip up-down
             if random.random() < hyp['flipud']:
@@ -639,7 +641,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                         elif 0.5 < label[5] < 1:
                             label[5] = 0.75 + (0.75-label[5])
 
-        # REVIEW: change torch.zeros size from (nL, 6) to (nL, 7)
+        # REVIEW: change labels_out size from (nL, 6) to (nL, 7)
         # labels_out = torch.zeros((nL, 6))
         labels_out = torch.zeros((nL, 7))
         if nL:
@@ -661,14 +663,17 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
 
     @staticmethod
     def collate_fn(batch):
-        img, label, path, shapes, cv_img = zip(*batch)  # transposed
+        # REVIEW: add cv_imgs in zip retrieving
+        img, label, path, shapes, cv_imgs = zip(*batch)  # transposed
         for i, l in enumerate(label):
             l[:, 0] = i  # add target image index for build_targets()
-        return torch.stack(img, 0), torch.cat(label, 0), path, shapes, np.asarray(cv_img)
+        # REVIEW: add cv_img in return
+        return torch.stack(img, 0), torch.cat(label, 0), path, shapes, np.asarray(cv_imgs)
 
     @staticmethod
     def collate_fn4(batch):
-        img, label, path, shapes, cv_img = zip(*batch)  # transposed
+        # REVIEW: add cv_imgs in zip retrieving
+        img, label, path, shapes, cv_imgs = zip(*batch)  # transposed
         n = len(shapes) // 4
         img4, label4, path4, shapes4 = [], [], path[:n], shapes[:n]
 
@@ -690,7 +695,8 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         for i, l in enumerate(label4):
             l[:, 0] = i  # add target image index for build_targets()
 
-        return torch.stack(img4, 0), torch.cat(label4, 0), path4, shapes4, np.asarray(cv_img)
+        # REVIEW: add cv_img in return
+        return torch.stack(img4, 0), torch.cat(label4, 0), path4, shapes4, np.asarray(cv_imgs)
 
 
 
@@ -1217,7 +1223,7 @@ def r_random_perspective(img, targets=(), segments=(), degrees=10, translate=.1,
             # xy = (targets[:, [1, 2]]+targets[:, [5, 6]])/2
             # wh = ((targets[:, [3, 5]]+targets[:, [1, 3]])**2+(targets[:, [4, 6]]-targets[:, [2, 4]])**2)**0.5
 
-            # TODO: rotation conversion
+            # REVIEW: rotation conversion
             if targets.shape[0] and targets.shape[1] == 10:
                 targets[:, -1] += a/360
                 targets[:, -1] = np.where(targets[:, -1]<0, 1+targets[:, -1], np.where(targets[:, -1]>1, targets[:, -1]-1, targets[:, -1]))

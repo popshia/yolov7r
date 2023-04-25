@@ -30,7 +30,7 @@ class Detect(nn.Module):
     def __init__(self, nc=80, anchors=(), ch=()):  # detection layer
         super(Detect, self).__init__()
         self.nc = nc  # number of classes
-        # REVIEW: add rad in output
+        # REVIEW: add rad in output (nc+5->nc+6)
         # self.no = nc + 5  # number of outputs per anchor
         self.no = nc + 6  # add radian outpupt in self.no
         self.nl = len(anchors)  # number of detection layers
@@ -106,7 +106,7 @@ class IDetect(nn.Module):
     def __init__(self, nc=80, anchors=(), ch=()):  # detection layer
         super(IDetect, self).__init__()
         self.nc = nc  # number of classes
-        # REVIEW: change self.no from nc + 5 to nc + 6
+        # REVIEW: add rad in output (nc+5->nc+6)
         # self.no = nc + 5  # number of outputs per anchor
         self.no = nc + 6  # add radian in output
         self.nl = len(anchors)  # number of detection layers
@@ -533,9 +533,6 @@ class Model(nn.Module):
             self.yaml['anchors'] = round(anchors)  # override yaml value
         self.model, self.save = parse_model(deepcopy(self.yaml), ch=[ch])  # model, savelist
 
-        # REVIEW: add get yolo_layers
-        self.yolo_layers = get_yolo_layers(self.model)
-
         self.names = [str(i) for i in range(self.yaml['nc'])]  # default names
         # print([x.shape for x in self.forward(torch.zeros(1, ch, 64, 64))])
 
@@ -603,7 +600,6 @@ class Model(nn.Module):
                     yi[..., 1] = img_size[0] - yi[..., 1]  # de-flip ud
                 elif fi == 3:
                     yi[..., 0] = img_size[1] - yi[..., 0]  # de-flip lr
-                # TODO: radian fixing
                 y.append(yi)
             return torch.cat(y, 1), None  # augmented inference, train
         else:
@@ -634,11 +630,6 @@ class Model(nn.Module):
                 print('%10.1f%10.0f%10.1fms %-40s' % (o, m.np, dt[-1], m.type))
 
             x = m(x)  # run
-
-            # TODO: add plotting after every model run
-            # if m.__class__.__name__ == 'RepConv':
-            #      print(x.size())
-            
             y.append(x if m.i in self.save else None)  # save output
 
         if profile:
@@ -748,15 +739,11 @@ class Model(nn.Module):
         model_info(self, verbose, img_size)
 
 
-def get_yolo_layers(model):
-    return [i for i, m in enumerate(model.children()) if m.__class__.__name__ == 'RepConv']
-
-
 def parse_model(d, ch):  # model_dict, input_channels(3)
     logger.info('\n%3s%18s%3s%10s  %-40s%-30s' % ('', 'from', 'n', 'params', 'module', 'arguments'))
     anchors, nc, gd, gw = d['anchors'], d['nc'], d['depth_multiple'], d['width_multiple']
     na = (len(anchors[0]) // 2) if isinstance(anchors, list) else anchors  # number of anchors
-    # REVIEW: add one more output
+    # REVIEW: add rad in output (nc+5->nc+6)
     # no = na * (nc + 5)  # number of outputs = anchors * (classes + 5)
     no = na * (nc + 6)  # number of outputs = anchors * (classes + 6)
 

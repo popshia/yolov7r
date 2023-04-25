@@ -710,19 +710,17 @@ def non_max_suppression(prediction, conf_thres=0.25, iou_thres=0.45, classes=Non
         # TODO: multilabeling index fixing
         # Detections matrix nx6 (xyxy, conf, cls)
         if multi_label:
-            # REVIEW: change indices
+            # REVIEW: change index
             # i, j = (x[:, 5:] > conf_thres).nonzero(as_tuple=False).T
-            # x = torch.cat((box[i], x[i, j + 5, None], j[:, None].float()), 1)
             i, j = (x[:, 6:] > conf_thres).nonzero(as_tuple=False).T
-            # REVIEW: add rad to x
-            # x = torch.cat((box[i], x[i, j + 6, None], j[:, None].float()), 1)
+            # REVIEW: cat rad to x and change index from j+5 to j+6
+            # x = torch.cat((box[i], x[i, j + 5, None], j[:, None].float()), 1)
             x = torch.cat((box[i], rad[i], x[i, j + 6, None], j[:, None].float()), 1)
         else:  # best class only
             # REVIEW: change index
             # conf, j = x[:, 5:].max(1, keepdim=True)
             conf, j = x[:, 6:].max(1, keepdim=True)
-
-            # REVIEW: cat radian
+            # REVIEW: cat rad to x
             # x = torch.cat((box, conf, j.float()), 1)[conf.view(-1) > conf_thres]
             x = torch.cat((box, rad, conf, j.float()), 1)[conf.view(-1) > conf_thres]
 
@@ -812,7 +810,7 @@ def rotate_non_max_suppression(prediction, conf_thres=0.1, iou_thres=0.6, classe
         if labels and len(labels[xi]):
             l = labels[xi]
 
-            # REVIEW: change nc+5 to nc+6
+            # REVIEW: change size of v from nc+5 to nc+6
             # v = torch.zeros((len(l), nc + 5), device=x.device)
             v = torch.zeros((len(l), nc + 6), device=x.device)
 
@@ -825,7 +823,7 @@ def rotate_non_max_suppression(prediction, conf_thres=0.1, iou_thres=0.6, classe
             # v[:, 4] = 1.0  # conf
             v[:, 5] = 1.0  # conf
 
-            # REVIEW: change from +5 to +6
+            # REVIEW: change cls index from +5 to +6
             # v[range(len(l)), l[:, 0].long() + 5] = 1.0  # cls
             v[range(len(l)), l[:, 0].long() + 6] = 1.0  # cls
             x = torch.cat((x, v), 0)
@@ -851,20 +849,19 @@ def rotate_non_max_suppression(prediction, conf_thres=0.1, iou_thres=0.6, classe
         box = x[:, :5]
         # NOTE: box(x, y, w, h, rad)
 
-        # TODO: multilabeling index fixing
         # Detections matrix nx6 (xyxy, conf, cls)
         if multi_label:
-            # REVIEW: change indices
+            # REVIEW: change index
             # i, j = (x[:, 5:] > conf_thres).nonzero(as_tuple=False).T
             i, j = (x[:, 6:] > conf_thres).nonzero(as_tuple=False).T
-            # REVIEW: add rad to x
+            # REVIEW: cat rad to x and change j+5 to j+6
             # x = torch.cat((box[i], x[i, j + 5, None], j[:, None].float()), 1)
             x = torch.cat((box[i], x[i, j + 6, None], j[:, None].float()), 1)
         else:  # best class only
             # REVIEW: change index
             # conf, j = x[:, 5:].max(1, keepdim=True)
             conf, j = x[:, 6:].max(1, keepdim=True)
-            # REVIEW: cat radian
+            # REVIEW: cat rad to x
             # x = torch.cat((box, conf, j.float()), 1)[conf.view(-1) > conf_thres]
             x = torch.cat((box, conf, j.float()), 1)[conf.view(-1) > conf_thres]
 
@@ -894,8 +891,8 @@ def rotate_non_max_suppression(prediction, conf_thres=0.1, iou_thres=0.6, classe
 
         # REVIEW: change box index and score index
         # boxes, scores = x[:, :4] + c, x[:, 4]  # boxes (offset by class), scores
-        # REVIEW: change offset from xywh to center xy only
         boxes = x[:, :5]
+        # REVIEW: change offset from xywh to center xy only
         boxes[:, :2] += c
         scores = x[:, 5]  # boxes (offset by class), scores
 

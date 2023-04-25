@@ -46,7 +46,7 @@ def test(data,
          trace=False,
          is_coco=False,
          v5_metric=False,
-         # REVIEW: add tb_writer, epoch
+         # REVIEW: add extra arguments
          loss_terms=None,
          tb_writer=None,
          epoch=None,
@@ -120,10 +120,9 @@ def test(data,
     # REVIEW: add rand_batch
     rand_batch = random.randint(0, len(dataloader)-1)
 
-    for batch_i, (img, targets, paths, shapes, cv_imgs) in enumerate(tqdm(dataloader, desc=s)):
-        # REVIEW: add copy of image
-        img_to_draw = cv2.imread(paths[0], cv2.IMREAD_UNCHANGED)
-
+    for batch_i, (img, targets, paths, shapes,
+                  # REVIEW: get cv_imgs from dataloader
+                  cv_imgs) in enumerate(tqdm(dataloader, desc=s)):
         img = img.to(device, non_blocking=True)
         img = img.half() if half else img.float()  # uint8 to fp16/32
         img /= 255.0  # 0 - 255 to 0.0 - 1.0
@@ -147,9 +146,7 @@ def test(data,
 
             # Run NMS
             # REVIEW: exclude radian value in targets by changing targets[:, 2:] to targets[:, 2:6]
-            # targets[:, 2:] *= torch.Tensor([width, height, width, height]).to(device)  # to pixels
-            if nms == "hnms":
-                targets[:, 2:6] *= whwh # to pixels
+            # targets[:, 2:6] *= torch.Tensor([width, height, width, height]).to(device)  # to pixels
             lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if save_hybrid else []  # for autolabelling
 
             # REVIEW: add plotting for outputs befrore NMS
@@ -166,7 +163,7 @@ def test(data,
 
             t1 += time_synchronized() - t
 
-        # # REVIEW: add plotting for outputs after NMS
+        # REVIEW: add plotting for outputs after NMS
         if training and batch_i == rand_batch:
             plot_pred_results(tb_writer, "test/after_nms", out[0], 0.1, copy.deepcopy(cv_imgs[0]), epoch, before_nms=False)
 
@@ -175,9 +172,6 @@ def test(data,
             labels = targets[targets[:, 0] == si, 1:]
             nl = len(labels)
             tcls = labels[:, 0].tolist() if nl else []  # target class
-
-            # REVIEW: add trad, 5?
-            trad = labels[:, 5].tolist()
 
             path = Path(paths[si])
             seen += 1
@@ -232,23 +226,19 @@ def test(data,
                 tcls_tensor = labels[:, 0]
 
                 # target boxes
-                if nms == "rnms":
-                    # REVIEW: add tbox_xywhrad
-                    tbox_xywhrad = labels[:, 1:6]
-                    tbox_xywhrad[:, 0:4] *= whwh
-                else:
-                    tbox = xywh2xyxy(labels[:, 1:5])
-                    scale_coords(img[si].shape[1:], tbox, shapes[si][0], shapes[si][1])  # native-space labels
+                # REVIEW: add tbox_xywhrad
+                # tbox = xywh2xyxy(labels[:, 1:5])
+                # scale_coords(img[si].shape[1:], tbox, shapes[si][0], shapes[si][1])  # native-space labels
+                tbox_xywhrad = labels[:, 1:6]
+                tbox_xywhrad[:, 0:4] *= whwh
 
                 # print(paths[si])
                 # print("t: ", tbox_xywhrad)
 
                 if plots:
                     # REVIEW: add tbox_xywhrad in process_batch
-                    if nms == "rnms":
-                        confusion_matrix.process_batch(predn, torch.cat((labels[:, 0:1], tbox_xywhrad), 1), nms)
-                    else:
-                        confusion_matrix.process_batch(predn, torch.cat((labels[:, 0:1], tbox), 1), nms)
+                    # confusion_matrix.process_batch(predn, torch.cat((labels[:, 0:1], tbox), 1), nms)
+                    confusion_matrix.process_batch(predn, torch.cat((labels[:, 0:1], tbox_xywhrad), 1), nms)
 
                 # Per target class
                 for cls in torch.unique(tcls_tensor):
@@ -260,21 +250,20 @@ def test(data,
 
                     # Search for detections
                     if pi.shape[0]:
-                        if nms == "rnms":
-                            # REVIEW: add pred, target conversion
-                            tbox4nms = tbox_xywhrad.clone()
-                            tbox4nms[:, 1] = -tbox4nms[:, 1]
-                            tbox4nms[:, 4] = tbox4nms[:, 4]*math.pi*2
-                            tbox4nms[:, 4] = torch.where(tbox4nms[:, 4]-math.pi/2<0, tbox4nms[:, 4]-math.pi/2+2*math.pi, tbox4nms[:, 4]-math.pi/2)
-                            pbox4nms = predn[pi, :5].clone()
-                            pbox4nms[:, 1] = -pbox4nms[:, 1]
-                            pbox4nms[:, 4] = pbox4nms[:, 4]*math.pi*2
-                            pbox4nms[:, 4] = torch.where(pbox4nms[:, 4]-math.pi/2<0, pbox4nms[:, 4]-math.pi/2+2*math.pi, pbox4nms[:, 4]-math.pi/2)
-                            # REVIEW: add rotation iou
-                            ious, i = rbox_iou(pbox4nms, tbox4nms[ti], useGPU=True).max(1)
-                        else:
-                            # Prediction to target ious
-                            ious, i = box_iou(predn[pi, :4], tbox[ti]).max(1)  # best ious, indices
+                        # REVIEW: add pred, target conversion
+                        tbox4nms = tbox_xywhrad.clone()
+                        tbox4nms[:, 1] = -tbox4nms[:, 1]
+                        tbox4nms[:, 4] = tbox4nms[:, 4]*math.pi*2
+                        tbox4nms[:, 4] = torch.where(tbox4nms[:, 4]-math.pi/2<0, tbox4nms[:, 4]-math.pi/2+2*math.pi, tbox4nms[:, 4]-math.pi/2)
+                        pbox4nms = predn[pi, :5].clone()
+                        pbox4nms[:, 1] = -pbox4nms[:, 1]
+                        pbox4nms[:, 4] = pbox4nms[:, 4]*math.pi*2
+                        pbox4nms[:, 4] = torch.where(pbox4nms[:, 4]-math.pi/2<0, pbox4nms[:, 4]-math.pi/2+2*math.pi, pbox4nms[:, 4]-math.pi/2)
+
+                        # Prediction to target ious
+                        # REVIEW: add rotation iou
+                        # ious, i = box_iou(predn[pi, :4], tbox[ti]).max(1)  # best ious, indices
+                        ious, i = rbox_iou(pbox4nms, tbox4nms[ti], useGPU=True).max(1)
 
                         # print("p: ", pbox4nms)
                         # print(ious, i)
@@ -291,7 +280,6 @@ def test(data,
                                     break
 
             # REVIEW: change conf index form 4 to 5, cls index from 5 to 6
-            # TODO: append radian in stats?
             # Append statistics (correct, conf, pcls, tcls)
             # stats.append((correct.cpu(), pred[:, 4].cpu(), pred[:, 5].cpu(), tcls))
             stats.append((correct.cpu(), pred[:, 5].cpu(), pred[:, 6].cpu(), tcls))
