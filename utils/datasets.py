@@ -793,6 +793,7 @@ def load_mosaic(self, index):
     #img4, labels4, segments4 = remove_background(img4, labels4, segments4)
     #sample_segments(img4, labels4, segments4, probability=self.hyp['copy_paste'])
     img4, labels4, segments4 = copy_paste(img4, labels4, segments4, probability=self.hyp['copy_paste'])
+    # REVIEW: add r_random_perspective
     img4, labels4 = r_random_perspective(img4, labels4, segments4,
                                        degrees=self.hyp['degrees'],
                                        translate=self.hyp['translate'],
@@ -871,6 +872,7 @@ def load_mosaic9(self, index):
     # Augment
     #img9, labels9, segments9 = remove_background(img9, labels9, segments9)
     img9, labels9, segments9 = copy_paste(img9, labels9, segments9, probability=self.hyp['copy_paste'])
+    # REVIEW: add r_random_perspective
     img9, labels9 = r_random_perspective(img9, labels9, segments9,
                                        degrees=self.hyp['degrees'],
                                        translate=self.hyp['translate'],
