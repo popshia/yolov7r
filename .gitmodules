@@ -7,3 +7,6 @@
 [submodule "yolov5_annotations"]
 	path = yolov5_annotations
 	url = https://github.com/HuKai97/yolov5-5.x-annotations
+[submodule "yolov7"]
+	path = yolov7
+	url = https://github.com/WongKinYiu/yolov7
